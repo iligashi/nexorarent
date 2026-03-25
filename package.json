@@ -1,0 +1,19 @@
+{
+  "name": "drenas-rentacar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Premium Rent-a-Car platform for Drenas, Kosovo",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "db:migrate": "cd server && npm run db:migrate",
+    "db:seed": "cd server && npm run db:seed",
+    "db:reset": "cd server && npm run db:reset"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
