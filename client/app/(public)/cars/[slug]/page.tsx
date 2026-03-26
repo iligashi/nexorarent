@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   Fuel, Cog, Users, DoorOpen, Gauge, Star, Calendar, MessageCircle, ArrowLeft, Check,
@@ -61,8 +60,13 @@ export default function CarDetailPage() {
 
   const images = car.images || [];
   const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || '';
+  const getImageUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${apiBase}${url}`;
+  };
   const currentImg = images[selectedImage]?.url
-    ? `${apiBase}${images[selectedImage].url}`
+    ? getImageUrl(images[selectedImage].url)
     : 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80';
 
   const specs = [
@@ -90,12 +94,10 @@ export default function CarDetailPage() {
               animate={{ opacity: 1 }}
               className="relative aspect-[16/9] rounded-xl overflow-hidden bg-bg-secondary"
             >
-              <Image
+              <img
                 src={currentImg}
                 alt={`${car.brand} ${car.model}`}
-                fill
-                className="object-cover"
-                priority
+                className="absolute inset-0 w-full h-full object-cover"
               />
             </motion.div>
 
@@ -110,11 +112,10 @@ export default function CarDetailPage() {
                       i === selectedImage ? 'border-accent' : 'border-transparent opacity-60 hover:opacity-100'
                     }`}
                   >
-                    <Image
-                      src={`${apiBase}${img.url}`}
+                    <img
+                      src={getImageUrl(img.url)}
                       alt=""
-                      fill
-                      className="object-cover"
+                      className="absolute inset-0 w-full h-full object-cover"
                     />
                   </button>
                 ))}

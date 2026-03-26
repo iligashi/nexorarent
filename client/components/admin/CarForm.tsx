@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import type { Car } from '@/types';
+import { useState, useEffect } from 'react';
+import api from '@/lib/api';
+import type { Car, CarImage } from '@/types';
+import { Plus, Trash2, Star, ImageIcon } from 'lucide-react';
 
 const categories = ['economy', 'compact', 'sedan', 'suv', 'luxury', 'van', 'sports'];
 const fuelTypes = ['petrol', 'diesel', 'hybrid', 'electric'];
@@ -38,6 +40,15 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
     is_featured: car?.is_featured || false,
   });
 
+  // Images state
+  const [images, setImages] = useState<CarImage[]>([]);
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [addingImage, setAddingImage] = useState(false);
+
+  useEffect(() => {
+    if (car?.images) setImages(car.images);
+  }, [car]);
+
   const update = (field: string, value: unknown) => setForm(prev => ({ ...prev, [field]: value }));
 
   const toggleFeature = (feature: string) => {
@@ -49,12 +60,54 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
     }));
   };
 
+  const addImageUrl = async () => {
+    if (!newImageUrl || !car?.id) return;
+    setAddingImage(true);
+    try {
+      const { data } = await api.post(`/admin/cars/${car.id}/images/url`, {
+        url: newImageUrl,
+        is_primary: images.length === 0,
+      });
+      setImages(prev => [...prev, data.image]);
+      setNewImageUrl('');
+    } catch (err) {
+      console.error('Failed to add image:', err);
+    } finally {
+      setAddingImage(false);
+    }
+  };
+
+  const deleteImage = async (imgId: string) => {
+    if (!car?.id) return;
+    try {
+      await api.delete(`/admin/cars/${car.id}/images/${imgId}`);
+      setImages(prev => prev.filter(i => i.id !== imgId));
+    } catch (err) {
+      console.error('Failed to delete image:', err);
+    }
+  };
+
+  const setPrimary = async (imgId: string) => {
+    if (!car?.id) return;
+    try {
+      // Use the URL endpoint to set as primary by re-adding logic
+      // For now, just update locally - the backend can be extended
+      await api.post(`/admin/cars/${car.id}/images/url`, {
+        url: images.find(i => i.id === imgId)?.url,
+        is_primary: true,
+      });
+      setImages(prev => prev.map(i => ({ ...i, is_primary: i.id === imgId })));
+    } catch (err) {
+      console.error('Failed to set primary:', err);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(form);
   };
 
-  const tabs = ['Details', 'Pricing', 'Features'];
+  const tabs = ['Details', 'Pricing', 'Images', 'Features'];
   const inputClass = 'w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF4D30]/20 focus:border-[#FF4D30]';
   const labelClass = 'block text-sm font-medium text-gray-700 mb-1.5';
 
@@ -167,8 +220,91 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
           </div>
         )}
 
-        {/* Features tab */}
+        {/* Images tab */}
         {activeTab === 2 && (
+          <div>
+            {!car?.id ? (
+              <div className="text-center py-12 text-gray-400">
+                <ImageIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm">Save the car first, then you can add images.</p>
+              </div>
+            ) : (
+              <>
+                {/* Add image by URL */}
+                <div className="mb-6">
+                  <label className={labelClass}>Add Image URL</label>
+                  <div className="flex gap-3">
+                    <input
+                      className={inputClass}
+                      placeholder="https://example.com/car-photo.jpg"
+                      value={newImageUrl}
+                      onChange={e => setNewImageUrl(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={addImageUrl}
+                      disabled={!newImageUrl || addingImage}
+                      className="px-5 py-2.5 bg-[#FF4D30] text-white text-sm font-semibold rounded-lg hover:bg-[#E6442B] transition-colors disabled:opacity-50 whitespace-nowrap flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" /> {addingImage ? 'Adding...' : 'Add Image'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5">Paste any image URL. The first image will be set as the primary/cover image.</p>
+                </div>
+
+                {/* Image grid */}
+                {images.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {images.map(img => (
+                      <div key={img.id} className="relative group rounded-lg overflow-hidden border border-gray-200">
+                        <div className="aspect-[4/3] bg-gray-100">
+                          <img
+                            src={img.url.startsWith('http') ? img.url : `http://localhost:4000${img.url}`}
+                            alt={img.alt_text || ''}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        {img.is_primary && (
+                          <div className="absolute top-2 left-2 bg-[#FF4D30] text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Star className="w-3 h-3" /> Primary
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          {!img.is_primary && (
+                            <button
+                              type="button"
+                              onClick={() => setPrimary(img.id)}
+                              className="p-2 bg-white rounded-lg text-gray-700 hover:bg-gray-100 text-xs font-medium"
+                              title="Set as primary"
+                            >
+                              <Star className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => deleteImage(img.id)}
+                            className="p-2 bg-red-500 rounded-lg text-white hover:bg-red-600"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
+                    <ImageIcon className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No images yet. Add one above.</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Features tab */}
+        {activeTab === 3 && (
           <div>
             <p className="text-sm text-gray-500 mb-4">Select the features this car has:</p>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">

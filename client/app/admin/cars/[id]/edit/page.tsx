@@ -17,10 +17,13 @@ export default function EditCarPage() {
   useEffect(() => {
     const fetchCar = async () => {
       try {
-        const { data } = await api.get(`/cars?limit=100`);
-        const found = data.cars.find((c: Car) => c.id === id);
-        if (found) setCar(found);
-        else setError('Car not found');
+        // First get the car slug from the list, then fetch full detail with images
+        const { data: listData } = await api.get(`/cars?limit=100`);
+        const found = listData.cars.find((c: Car) => c.id === id);
+        if (!found) { setError('Car not found'); return; }
+        // Fetch full detail including images
+        const { data } = await api.get(`/cars/${found.slug}`);
+        setCar(data.car);
       } catch {
         setError('Failed to load car');
       } finally {

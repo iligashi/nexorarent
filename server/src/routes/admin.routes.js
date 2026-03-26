@@ -230,7 +230,33 @@ router.patch('/cars/:id/toggle', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Car image upload
+// Add car image by URL
+router.post('/cars/:id/images/url', async (req, res, next) => {
+  try {
+    const carId = req.params.id;
+    const { url, alt_text, is_primary } = req.body;
+    if (!url) return res.status(400).json({ error: 'URL is required' });
+
+    // If setting as primary, unset other primaries first
+    if (is_primary) {
+      await query('UPDATE car_images SET is_primary = false WHERE car_id = $1', [carId]);
+    }
+
+    const imgId = uuidv4();
+    const { rows: countRows } = await query('SELECT COUNT(*) AS count FROM car_images WHERE car_id = $1', [carId]);
+    const sortOrder = parseInt(countRows[0].count);
+    const setPrimary = is_primary || sortOrder === 0;
+
+    await query(
+      'INSERT INTO car_images (id, car_id, url, alt_text, is_primary, sort_order) VALUES ($1,$2,$3,$4,$5,$6)',
+      [imgId, carId, url, alt_text || null, setPrimary, sortOrder]
+    );
+    const { rows } = await query('SELECT * FROM car_images WHERE id = $1', [imgId]);
+    res.status(201).json({ image: rows[0] });
+  } catch (err) { next(err); }
+});
+
+// Car image upload (file)
 router.post('/cars/:id/images', upload.array('images', 10), async (req, res, next) => {
   try {
     const carId = req.params.id;

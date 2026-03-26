@@ -87,8 +87,8 @@ async function seed() {
     ];
     for (const [key, value] of settings) {
       await conn.execute(
-        'INSERT INTO settings (`key`, `value`) VALUES (?, CAST(? AS JSON)) ON DUPLICATE KEY UPDATE `value` = CAST(? AS JSON)',
-        [key, value, value]
+        'INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)',
+        [key, value]
       );
     }
 
