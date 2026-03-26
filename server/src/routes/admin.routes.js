@@ -3,7 +3,8 @@ import sharp from 'sharp';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import { query } from '../db/pool.js';
+import PDFDocument from 'pdfkit';
+import { query, getConnection } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireAdmin, requireManager } from '../middleware/admin.js';
 import { upload } from '../middleware/upload.js';
@@ -431,6 +432,300 @@ router.put('/settings', async (req, res, next) => {
       );
     }
     res.json({ message: 'Settings updated' });
+  } catch (err) { next(err); }
+});
+
+// Helper to run query on a connection with $N -> ? conversion
+async function connQuery(conn, sql, params = []) {
+  let mysqlSql = sql;
+  const maxParam = params.length;
+  for (let i = maxParam; i >= 1; i--) {
+    mysqlSql = mysqlSql.replaceAll(`$${i}`, '?');
+  }
+  mysqlSql = mysqlSql.replace(/::\w+/g, '');
+  const [rows] = await conn.execute(mysqlSql, params);
+  return { rows };
+}
+
+function generateReservationNo() {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `DRC-${date}-${rand}`;
+}
+
+// Admin create reservation for a customer
+router.post('/reservations', async (req, res, next) => {
+  const conn = await getConnection();
+  try {
+    const { car_id, pickup_location, dropoff_location, pickup_date, dropoff_date,
+      customer_name, customer_email, customer_phone, notes, admin_notes, extras, status } = req.body;
+
+    if (!car_id || !pickup_location || !dropoff_location || !pickup_date || !dropoff_date || !customer_name) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const pickupDt = new Date(pickup_date);
+    const dropoffDt = new Date(dropoff_date);
+    if (dropoffDt <= pickupDt) {
+      return res.status(400).json({ error: 'Dropoff date must be after pickup date' });
+    }
+
+    // Get car price
+    const { rows: carRows } = await connQuery(conn, 'SELECT price_per_day FROM cars WHERE id = $1', [car_id]);
+    if (carRows.length === 0) return res.status(404).json({ error: 'Car not found' });
+
+    const totalDays = Math.max(1, Math.ceil((dropoffDt - pickupDt) / (1000 * 60 * 60 * 24)));
+    const dailyRate = parseFloat(carRows[0].price_per_day);
+
+    // Seasonal pricing
+    const { rows: seasonal } = await connQuery(conn, `
+      SELECT multiplier FROM seasonal_pricing
+      WHERE car_id = $1 AND start_date <= $2 AND end_date >= $3 LIMIT 1
+    `, [car_id, pickup_date, dropoff_date]);
+    const multiplier = seasonal.length > 0 ? parseFloat(seasonal[0].multiplier) : 1.0;
+
+    const basePrice = dailyRate * multiplier * totalDays;
+
+    // Calculate extras
+    let extrasTotal = 0;
+    const extrasToInsert = [];
+    if (extras && extras.length > 0) {
+      for (const ext of extras) {
+        const { rows: extRows } = await connQuery(conn, 'SELECT price_per_day FROM extras WHERE id = $1', [ext.extra_id]);
+        if (extRows.length > 0) {
+          const extPrice = parseFloat(extRows[0].price_per_day) * totalDays * (ext.quantity || 1);
+          extrasTotal += extPrice;
+          extrasToInsert.push({ extra_id: ext.extra_id, quantity: ext.quantity || 1, price: extPrice });
+        }
+      }
+    }
+
+    const totalPrice = basePrice + extrasTotal;
+    const reservationNo = generateReservationNo();
+    const reservationId = uuidv4();
+    const resStatus = status || 'confirmed';
+
+    await conn.beginTransaction();
+
+    await connQuery(conn, `
+      INSERT INTO reservations (id, reservation_no, user_id, car_id, pickup_location, dropoff_location,
+        pickup_date, dropoff_date, status, total_days, daily_rate, extras_total, total_price,
+        guest_name, guest_email, guest_phone, notes, admin_notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+    `, [
+      reservationId, reservationNo, null, car_id, pickup_location, dropoff_location,
+      pickup_date, dropoff_date, resStatus, totalDays, dailyRate * multiplier, extrasTotal, totalPrice,
+      customer_name, customer_email || null, customer_phone || null, notes || null, admin_notes || null,
+    ]);
+
+    for (const ext of extrasToInsert) {
+      await connQuery(conn,
+        'INSERT INTO reservation_extras (id, reservation_id, extra_id, quantity, price) VALUES ($1,$2,$3,$4,$5)',
+        [uuidv4(), reservationId, ext.extra_id, ext.quantity, ext.price]
+      );
+    }
+
+    await conn.commit();
+
+    // Return full reservation with car info
+    const { rows: resRows } = await query(`
+      SELECT r.*, c.brand, c.model,
+        pl.name AS pickup_location_name, dl.name AS dropoff_location_name
+      FROM reservations r
+      JOIN cars c ON c.id = r.car_id
+      LEFT JOIN locations pl ON pl.id = r.pickup_location
+      LEFT JOIN locations dl ON dl.id = r.dropoff_location
+      WHERE r.id = $1
+    `, [reservationId]);
+
+    res.status(201).json({ reservation: resRows[0] });
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
+});
+
+// Generate PDF invoice for a reservation
+router.get('/reservations/:id/invoice', async (req, res, next) => {
+  try {
+    const { rows } = await query(`
+      SELECT r.*, c.brand, c.model, c.year, c.color, c.license_plate, c.category,
+        pl.name AS pickup_location_name, pl.address AS pickup_address,
+        dl.name AS dropoff_location_name, dl.address AS dropoff_address,
+        COALESCE(r.guest_name, CONCAT(u.first_name, ' ', u.last_name)) AS customer_name,
+        COALESCE(r.guest_email, u.email) AS customer_email,
+        COALESCE(r.guest_phone, u.phone) AS customer_phone
+      FROM reservations r
+      JOIN cars c ON c.id = r.car_id
+      LEFT JOIN locations pl ON pl.id = r.pickup_location
+      LEFT JOIN locations dl ON dl.id = r.dropoff_location
+      LEFT JOIN users u ON u.id = r.user_id
+      WHERE r.id = $1
+    `, [req.params.id]);
+
+    if (rows.length === 0) return res.status(404).json({ error: 'Reservation not found' });
+    const r = rows[0];
+
+    // Get extras
+    const { rows: extras } = await query(`
+      SELECT re.*, e.name FROM reservation_extras re
+      JOIN extras e ON e.id = re.extra_id
+      WHERE re.reservation_id = $1
+    `, [r.id]);
+
+    // Get company settings
+    const { rows: settingsRows } = await query('SELECT `key`, value FROM settings');
+    const settings = {};
+    for (const s of settingsRows) {
+      try { settings[s.key] = JSON.parse(s.value); } catch { settings[s.key] = s.value; }
+    }
+
+    // Generate PDF
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=invoice-${r.reservation_no}.pdf`);
+    doc.pipe(res);
+
+    const accentColor = '#FF4D30';
+    const darkColor = '#1a1a2e';
+    const grayColor = '#666666';
+    const lightGray = '#f5f5f5';
+
+    // Header
+    doc.fontSize(24).font('Helvetica-Bold').fillColor(accentColor)
+      .text(settings.company_name || 'Drenas Rent a Car', 50, 50);
+    doc.fontSize(9).font('Helvetica').fillColor(grayColor)
+      .text(settings.company_address || 'Drenas, Kosovo', 50, 80)
+      .text(`Phone: ${settings.company_phone || ''} | Email: ${settings.company_email || ''}`, 50, 93);
+
+    // Invoice title
+    doc.fontSize(28).font('Helvetica-Bold').fillColor(darkColor)
+      .text('INVOICE', 400, 50, { align: 'right' });
+    doc.fontSize(10).font('Helvetica').fillColor(grayColor)
+      .text(`#${r.reservation_no}`, 400, 85, { align: 'right' })
+      .text(`Date: ${new Date(r.created_at).toLocaleDateString('en-GB')}`, 400, 100, { align: 'right' });
+
+    // Divider
+    doc.moveTo(50, 120).lineTo(545, 120).strokeColor(accentColor).lineWidth(2).stroke();
+
+    // Customer info
+    let y = 140;
+    doc.fontSize(11).font('Helvetica-Bold').fillColor(darkColor).text('Bill To:', 50, y);
+    y += 18;
+    doc.fontSize(10).font('Helvetica').fillColor('#333333')
+      .text(r.customer_name || 'N/A', 50, y);
+    y += 15;
+    if (r.customer_email) { doc.text(r.customer_email, 50, y); y += 15; }
+    if (r.customer_phone) { doc.text(r.customer_phone, 50, y); y += 15; }
+
+    // Reservation details box
+    const boxY = 140;
+    doc.fontSize(11).font('Helvetica-Bold').fillColor(darkColor).text('Reservation Details:', 300, boxY);
+    doc.fontSize(10).font('Helvetica').fillColor('#333333');
+    const detailX = 300;
+    const valX = 430;
+    doc.text('Status:', detailX, boxY + 18).font('Helvetica-Bold').fillColor(accentColor).text(r.status.toUpperCase(), valX, boxY + 18);
+    doc.font('Helvetica').fillColor('#333333');
+    doc.text('Pickup:', detailX, boxY + 36).text(new Date(r.pickup_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), valX, boxY + 36);
+    doc.text('Return:', detailX, boxY + 54).text(new Date(r.dropoff_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), valX, boxY + 54);
+    doc.text('Duration:', detailX, boxY + 72).text(`${r.total_days} day${r.total_days > 1 ? 's' : ''}`, valX, boxY + 72);
+
+    // Vehicle section
+    y = Math.max(y, boxY + 105) + 10;
+    doc.moveTo(50, y).lineTo(545, y).strokeColor('#e0e0e0').lineWidth(0.5).stroke();
+    y += 15;
+
+    doc.fontSize(11).font('Helvetica-Bold').fillColor(darkColor).text('Vehicle', 50, y);
+    y += 20;
+
+    // Table header
+    doc.rect(50, y, 495, 24).fill('#1a1a2e');
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff');
+    doc.text('VEHICLE', 60, y + 7).text('CATEGORY', 220, y + 7).text('COLOR', 320, y + 7).text('PLATE', 420, y + 7);
+    y += 24;
+
+    // Table row
+    doc.rect(50, y, 495, 28).fill(lightGray);
+    doc.fontSize(10).font('Helvetica-Bold').fillColor(darkColor).text(`${r.brand} ${r.model} (${r.year})`, 60, y + 8);
+    doc.font('Helvetica').text(r.category, 220, y + 8).text(r.color || '-', 320, y + 8).text(r.license_plate || '-', 420, y + 8);
+    y += 28;
+
+    // Locations
+    y += 15;
+    doc.fontSize(9).font('Helvetica').fillColor(grayColor);
+    doc.text(`Pickup: ${r.pickup_location_name || ''}${r.pickup_address ? ' - ' + r.pickup_address : ''}`, 60, y);
+    y += 14;
+    doc.text(`Return: ${r.dropoff_location_name || ''}${r.dropoff_address ? ' - ' + r.dropoff_address : ''}`, 60, y);
+    y += 25;
+
+    // Pricing table
+    doc.moveTo(50, y).lineTo(545, y).strokeColor('#e0e0e0').lineWidth(0.5).stroke();
+    y += 15;
+    doc.fontSize(11).font('Helvetica-Bold').fillColor(darkColor).text('Pricing Breakdown', 50, y);
+    y += 20;
+
+    // Pricing header
+    doc.rect(50, y, 495, 24).fill('#1a1a2e');
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff');
+    doc.text('DESCRIPTION', 60, y + 7).text('QTY', 320, y + 7).text('RATE', 390, y + 7).text('AMOUNT', 470, y + 7);
+    y += 24;
+
+    // Rental row
+    const baseAmount = parseFloat(r.daily_rate) * r.total_days;
+    doc.rect(50, y, 495, 26).fill(lightGray);
+    doc.fontSize(9).font('Helvetica').fillColor(darkColor);
+    doc.text(`Car Rental - ${r.brand} ${r.model}`, 60, y + 8);
+    doc.text(`${r.total_days} day${r.total_days > 1 ? 's' : ''}`, 320, y + 8);
+    doc.text(`€${parseFloat(r.daily_rate).toFixed(2)}`, 390, y + 8);
+    doc.font('Helvetica-Bold').text(`€${baseAmount.toFixed(2)}`, 470, y + 8);
+    y += 26;
+
+    // Extras rows
+    for (const ext of extras) {
+      const bgColor = y % 2 === 0 ? '#ffffff' : lightGray;
+      doc.rect(50, y, 495, 26).fill(bgColor);
+      doc.font('Helvetica').fillColor(darkColor);
+      doc.text(ext.name, 60, y + 8);
+      doc.text(`${ext.quantity}`, 320, y + 8);
+      doc.text(`€${(parseFloat(ext.price) / ext.quantity / r.total_days).toFixed(2)}/day`, 390, y + 8);
+      doc.font('Helvetica-Bold').text(`€${parseFloat(ext.price).toFixed(2)}`, 470, y + 8);
+      y += 26;
+    }
+
+    // Totals
+    y += 10;
+    doc.moveTo(350, y).lineTo(545, y).strokeColor('#e0e0e0').lineWidth(0.5).stroke();
+    y += 10;
+
+    doc.fontSize(10).font('Helvetica').fillColor(grayColor);
+    doc.text('Subtotal:', 350, y).text(`€${baseAmount.toFixed(2)}`, 470, y);
+    y += 18;
+
+    if (parseFloat(r.extras_total) > 0) {
+      doc.text('Extras:', 350, y).text(`€${parseFloat(r.extras_total).toFixed(2)}`, 470, y);
+      y += 18;
+    }
+
+    if (parseFloat(r.discount) > 0) {
+      doc.fillColor('#22c55e').text('Discount:', 350, y).text(`-€${parseFloat(r.discount).toFixed(2)}`, 470, y);
+      y += 18;
+    }
+
+    doc.moveTo(350, y).lineTo(545, y).strokeColor(accentColor).lineWidth(1.5).stroke();
+    y += 10;
+    doc.fontSize(14).font('Helvetica-Bold').fillColor(accentColor);
+    doc.text('TOTAL:', 350, y).text(`€${parseFloat(r.total_price).toFixed(2)}`, 460, y);
+
+    // Footer
+    const footerY = 760;
+    doc.moveTo(50, footerY).lineTo(545, footerY).strokeColor('#e0e0e0').lineWidth(0.5).stroke();
+    doc.fontSize(8).font('Helvetica').fillColor(grayColor);
+    doc.text('Thank you for choosing ' + (settings.company_name || 'Drenas Rent a Car') + '!', 50, footerY + 10, { align: 'center' });
+    doc.text(`${settings.company_address || 'Drenas, Kosovo'} | ${settings.company_phone || ''} | ${settings.company_email || ''}`, 50, footerY + 22, { align: 'center' });
+
+    doc.end();
   } catch (err) { next(err); }
 });
 

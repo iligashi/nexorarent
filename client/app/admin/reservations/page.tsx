@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import { formatPrice, formatDate } from '@/lib/utils';
 import DataTable from '@/components/admin/DataTable';
 import AdminBadge from '@/components/admin/AdminBadge';
-import { Search, Calendar, X } from 'lucide-react';
+import { Search, Calendar, X, Plus, FileText } from 'lucide-react';
 import type { Reservation, ReservationStatus } from '@/types';
 
 const statusTabs: { label: string; value: string }[] = [
@@ -112,9 +112,14 @@ export default function AdminReservationsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900 font-outfit">Reservations</h1>
-        <Link href="/admin/reservations/calendar" className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
-          <Calendar className="w-4 h-4" /> Calendar View
-        </Link>
+        <div className="flex gap-3">
+          <Link href="/admin/reservations/new" className="inline-flex items-center gap-2 bg-[#FF4D30] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#E6442B] transition-colors">
+            <Plus className="w-4 h-4" /> New Reservation
+          </Link>
+          <Link href="/admin/reservations/calendar" className="inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+            <Calendar className="w-4 h-4" /> Calendar View
+          </Link>
+        </div>
       </div>
 
       {/* Status tabs */}
@@ -230,6 +235,23 @@ export default function AdminReservationsPage() {
                   <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">{selectedRes.notes}</p>
                 </div>
               )}
+              {/* Invoice download */}
+              <div className="border-t border-gray-100 pt-4">
+                <button
+                  onClick={async () => {
+                    try {
+                      const response = await api.get(`/admin/reservations/${selectedRes.id}/invoice`, { responseType: 'blob' });
+                      const blob = new Blob([response.data], { type: 'application/pdf' });
+                      const url = URL.createObjectURL(blob);
+                      window.open(url, '_blank');
+                    } catch { alert('Failed to generate invoice'); }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  <FileText className="w-4 h-4" /> Download Invoice PDF
+                </button>
+              </div>
+
               {/* Status actions */}
               <div className="border-t border-gray-100 pt-4">
                 <p className="text-sm font-medium text-gray-700 mb-3">Update Status</p>
