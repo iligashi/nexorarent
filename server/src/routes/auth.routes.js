@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -38,11 +39,16 @@ router.post('/register', validate(registerSchema), async (req, res, next) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const id = uuidv4();
+    await query(
+      `INSERT INTO users (id, email, password_hash, first_name, last_name, phone)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, email, passwordHash, first_name, last_name, phone || null]
+    );
+
     const { rows } = await query(
-      `INSERT INTO users (email, password_hash, first_name, last_name, phone)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, email, first_name, last_name, phone, role`,
-      [email, passwordHash, first_name, last_name, phone || null]
+      'SELECT id, email, first_name, last_name, phone, role FROM users WHERE id = $1',
+      [id]
     );
 
     const user = rows[0];
@@ -129,11 +135,14 @@ router.get('/me', authenticate, (req, res) => {
 router.put('/me', authenticate, async (req, res, next) => {
   try {
     const { first_name, last_name, phone } = req.body;
-    const { rows } = await query(
+    await query(
       `UPDATE users SET first_name = COALESCE($1, first_name), last_name = COALESCE($2, last_name), phone = COALESCE($3, phone)
-       WHERE id = $4
-       RETURNING id, email, first_name, last_name, phone, role`,
+       WHERE id = $4`,
       [first_name, last_name, phone, req.user.id]
+    );
+    const { rows } = await query(
+      'SELECT id, email, first_name, last_name, phone, role FROM users WHERE id = $1',
+      [req.user.id]
     );
     res.json({ user: rows[0] });
   } catch (err) { next(err); }

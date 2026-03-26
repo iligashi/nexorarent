@@ -21,7 +21,7 @@ router.get('/', async (req, res, next) => {
     if (price_min) { conditions.push(`c.price_per_day >= $${paramIdx++}`); params.push(Number(price_min)); }
     if (price_max) { conditions.push(`c.price_per_day <= $${paramIdx++}`); params.push(Number(price_max)); }
     if (search) {
-      conditions.push(`(c.brand || ' ' || c.model) ILIKE $${paramIdx++}`);
+      conditions.push(`CONCAT(c.brand, ' ', c.model) LIKE $${paramIdx++}`);
       params.push(`%${search}%`);
     }
 
@@ -49,7 +49,7 @@ router.get('/', async (req, res, next) => {
       LIMIT $${paramIdx++} OFFSET $${paramIdx++}
     `;
 
-    const countQuery = `SELECT COUNT(*) FROM cars c ${where}`;
+    const countQuery = `SELECT COUNT(*) AS count FROM cars c ${where}`;
 
     const [carsResult, countResult] = await Promise.all([
       query(carsQuery, params),
@@ -141,7 +141,7 @@ router.get('/:id/availability', async (req, res, next) => {
       ORDER BY pickup_date
     `, [req.params.id]);
 
-    res.json({ is_available: rows[0].is_available, blocked_dates: blocked });
+    res.json({ is_available: !!rows[0].is_available, blocked_dates: blocked });
   } catch (err) { next(err); }
 });
 

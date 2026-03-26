@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MapPin, Phone, Mail, Facebook, Instagram, MessageCircle } from 'lucide-react';
+import { MapPin, Phone, Mail, Globe, Camera, MessageCircle } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -25,10 +25,10 @@ export default function Footer() {
             </p>
             <div className="flex gap-3 mt-6">
               <a href="#" className="w-9 h-9 flex items-center justify-center rounded-full bg-bg-tertiary hover:bg-accent transition-colors text-text-secondary hover:text-white">
-                <Facebook className="w-4 h-4" />
+                <Globe className="w-4 h-4" />
               </a>
               <a href="#" className="w-9 h-9 flex items-center justify-center rounded-full bg-bg-tertiary hover:bg-accent transition-colors text-text-secondary hover:text-white">
-                <Instagram className="w-4 h-4" />
+                <Camera className="w-4 h-4" />
               </a>
               <a href="#" className="w-9 h-9 flex items-center justify-center rounded-full bg-bg-tertiary hover:bg-accent transition-colors text-text-secondary hover:text-white">
                 <MessageCircle className="w-4 h-4" />

@@ -1,24 +1,35 @@
-import pg from 'pg';
+import mysql from 'mysql2/promise';
 import 'dotenv/config';
 
-const { Pool } = pg;
-
-const pool = new Pool({
+const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
+  port: parseInt(process.env.DB_PORT || '3306'),
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'drenas_rentacar',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres123',
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  waitForConnections: true,
+  connectionLimit: 20,
+  queueLimit: 0,
+  multipleStatements: true,
 });
 
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
-});
+// Helper that mimics pg-style { rows } return and converts $N placeholders to ?
+export async function query(sql, params = []) {
+  let mysqlSql = sql;
+  // Replace $N placeholders with ? (from highest to lowest to avoid $1 matching $10)
+  const maxParam = params.length;
+  for (let i = maxParam; i >= 1; i--) {
+    mysqlSql = mysqlSql.replaceAll(`$${i}`, '?');
+  }
+  // Remove PostgreSQL-specific type casts like ::car_category, ::numeric, ::fuel_type, etc.
+  mysqlSql = mysqlSql.replace(/::\w+/g, '');
 
-export const query = (text, params) => pool.query(text, params);
-export const getClient = () => pool.connect();
+  const [rows] = await pool.execute(mysqlSql, params);
+  return { rows };
+}
+
+export async function getConnection() {
+  return pool.getConnection();
+}
+
 export default pool;

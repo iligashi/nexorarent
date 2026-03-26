@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -25,13 +26,16 @@ router.post('/', authenticate, validate(reviewSchema), async (req, res, next) =>
       return res.status(400).json({ error: 'Can only review completed reservations' });
     }
 
-    const { rows } = await query(
-      'INSERT INTO reviews (user_id, reservation_id, rating, comment) VALUES ($1,$2,$3,$4) RETURNING *',
-      [req.user.id, reservation_id, rating, comment || null]
+    const id = uuidv4();
+    await query(
+      'INSERT INTO reviews (id, user_id, reservation_id, rating, comment) VALUES ($1,$2,$3,$4,$5)',
+      [id, req.user.id, reservation_id, rating, comment || null]
     );
+    const { rows } = await query('SELECT * FROM reviews WHERE id = $1', [id]);
     res.status(201).json({ review: rows[0] });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Already reviewed' });
+    // MySQL duplicate entry error code is ER_DUP_ENTRY (errno 1062)
+    if (err.errno === 1062) return res.status(409).json({ error: 'Already reviewed' });
     next(err);
   }
 });

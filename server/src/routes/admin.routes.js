@@ -2,6 +2,7 @@ import { Router } from 'express';
 import sharp from 'sharp';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireAdmin, requireManager } from '../middleware/admin.js';
@@ -17,13 +18,13 @@ router.get('/dashboard', async (req, res, next) => {
     const [revenue, activeRes, availCars, newCustomers, revenueChart, statusDist] = await Promise.all([
       query(`SELECT COALESCE(SUM(total_price), 0) AS total FROM reservations
              WHERE status IN ('confirmed','completed','active')
-             AND created_at >= DATE_TRUNC('month', NOW())`),
-      query(`SELECT COUNT(*) FROM reservations WHERE status IN ('confirmed', 'active')`),
-      query(`SELECT COUNT(*) FROM cars WHERE is_available = true`),
-      query(`SELECT COUNT(*) FROM users WHERE role = 'customer' AND created_at >= DATE_TRUNC('month', NOW())`),
-      query(`SELECT DATE_TRUNC('month', created_at) AS month, SUM(total_price) AS revenue, COUNT(*) AS bookings
+             AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')`),
+      query(`SELECT COUNT(*) AS count FROM reservations WHERE status IN ('confirmed', 'active')`),
+      query(`SELECT COUNT(*) AS count FROM cars WHERE is_available = true`),
+      query(`SELECT COUNT(*) AS count FROM users WHERE role = 'customer' AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')`),
+      query(`SELECT DATE_FORMAT(created_at, '%Y-%m-01') AS month, SUM(total_price) AS revenue, COUNT(*) AS bookings
              FROM reservations WHERE status IN ('confirmed','completed','active')
-             AND created_at >= NOW() - INTERVAL '12 months'
+             AND created_at >= NOW() - INTERVAL 12 MONTH
              GROUP BY month ORDER BY month`),
       query(`SELECT status, COUNT(*) AS count FROM reservations GROUP BY status`),
     ]);
@@ -43,25 +44,25 @@ router.get('/dashboard', async (req, res, next) => {
 router.get('/revenue', async (req, res, next) => {
   try {
     const { period = '12m' } = req.query;
-    const intervalMap = { '7d': '7 days', '30d': '30 days', '90d': '90 days', '12m': '12 months' };
-    const interval = intervalMap[period] || '12 months';
+    const intervalMap = { '7d': '7 DAY', '30d': '30 DAY', '90d': '90 DAY', '12m': '12 MONTH' };
+    const interval = intervalMap[period] || '12 MONTH';
 
     const [overview, byCategory, topCars] = await Promise.all([
-      query(`SELECT DATE_TRUNC('month', created_at) AS month,
+      query(`SELECT DATE_FORMAT(created_at, '%Y-%m-01') AS month,
               SUM(total_price) AS revenue, COUNT(*) AS bookings,
               AVG(total_days) AS avg_days
              FROM reservations WHERE status IN ('confirmed','completed','active')
-             AND created_at >= NOW() - INTERVAL '${interval}'
+             AND created_at >= NOW() - INTERVAL ${interval}
              GROUP BY month ORDER BY month`),
       query(`SELECT c.category, SUM(r.total_price) AS revenue, COUNT(*) AS bookings
              FROM reservations r JOIN cars c ON c.id = r.car_id
              WHERE r.status IN ('confirmed','completed','active')
-             AND r.created_at >= NOW() - INTERVAL '${interval}'
+             AND r.created_at >= NOW() - INTERVAL ${interval}
              GROUP BY c.category ORDER BY revenue DESC`),
       query(`SELECT c.brand, c.model, SUM(r.total_price) AS revenue, COUNT(*) AS bookings
              FROM reservations r JOIN cars c ON c.id = r.car_id
              WHERE r.status IN ('confirmed','completed','active')
-             AND r.created_at >= NOW() - INTERVAL '${interval}'
+             AND r.created_at >= NOW() - INTERVAL ${interval}
              GROUP BY c.id, c.brand, c.model ORDER BY revenue DESC LIMIT 10`),
     ]);
 
@@ -80,7 +81,7 @@ router.get('/reservations', async (req, res, next) => {
     if (status && status !== 'all') { conditions.push(`r.status = $${idx++}`); params.push(status); }
     if (car_id) { conditions.push(`r.car_id = $${idx++}`); params.push(car_id); }
     if (search) {
-      conditions.push(`(r.reservation_no ILIKE $${idx} OR r.guest_name ILIKE $${idx} OR u.first_name || ' ' || u.last_name ILIKE $${idx})`);
+      conditions.push(`(r.reservation_no LIKE $${idx} OR r.guest_name LIKE $${idx} OR CONCAT(u.first_name, ' ', u.last_name) LIKE $${idx})`);
       params.push(`%${search}%`);
       idx++;
     }
@@ -91,7 +92,7 @@ router.get('/reservations', async (req, res, next) => {
 
     const { rows } = await query(`
       SELECT r.*, c.brand, c.model,
-        COALESCE(r.guest_name, u.first_name || ' ' || u.last_name) AS customer_name,
+        COALESCE(r.guest_name, CONCAT(u.first_name, ' ', u.last_name)) AS customer_name,
         COALESCE(r.guest_phone, u.phone) AS customer_phone,
         COALESCE(r.guest_email, u.email) AS customer_email
       FROM reservations r
@@ -102,7 +103,7 @@ router.get('/reservations', async (req, res, next) => {
       LIMIT $${idx++} OFFSET $${idx++}
     `, params);
 
-    const countResult = await query(`SELECT COUNT(*) FROM reservations r LEFT JOIN users u ON u.id = r.user_id ${where}`, params.slice(0, -2));
+    const countResult = await query(`SELECT COUNT(*) AS count FROM reservations r LEFT JOIN users u ON u.id = r.user_id ${where}`, params.slice(0, -2));
 
     res.json({ reservations: rows, total: parseInt(countResult.rows[0].count), page: Number(page) });
   } catch (err) { next(err); }
@@ -117,10 +118,11 @@ router.put('/reservations/:id/status', async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    const { rows } = await query(
-      `UPDATE reservations SET status = $1, admin_notes = COALESCE($2, admin_notes) WHERE id = $3 RETURNING *`,
+    await query(
+      `UPDATE reservations SET status = $1, admin_notes = COALESCE($2, admin_notes) WHERE id = $3`,
       [status, admin_notes || null, req.params.id]
     );
+    const { rows } = await query('SELECT * FROM reservations WHERE id = $1', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Reservation not found' });
     res.json({ reservation: rows[0] });
   } catch (err) { next(err); }
@@ -129,20 +131,32 @@ router.put('/reservations/:id/status', async (req, res, next) => {
 // Calendar data
 router.get('/reservations/calendar', async (req, res, next) => {
   try {
-    const { rows } = await query(`
-      SELECT c.id AS car_id, c.brand || ' ' || c.model AS car_name,
-        json_agg(json_build_object(
-          'id', r.id, 'start', r.pickup_date, 'end', r.dropoff_date,
-          'status', r.status,
-          'customer', COALESCE(r.guest_name, u.first_name || ' ' || u.last_name)
-        ) ORDER BY r.pickup_date) AS reservations
+    const { rows: cars } = await query(`
+      SELECT c.id AS car_id, CONCAT(c.brand, ' ', c.model) AS car_name
       FROM cars c
-      LEFT JOIN reservations r ON r.car_id = c.id AND r.status NOT IN ('cancelled', 'rejected')
-      LEFT JOIN users u ON u.id = r.user_id
-      GROUP BY c.id, c.brand, c.model
       ORDER BY c.brand, c.model
     `);
-    res.json({ calendar: rows });
+
+    const result = [];
+    for (const car of cars) {
+      const { rows: reservations } = await query(`
+        SELECT r.id, r.pickup_date AS start, r.dropoff_date AS end,
+          r.status,
+          COALESCE(r.guest_name, CONCAT(u.first_name, ' ', u.last_name)) AS customer
+        FROM reservations r
+        LEFT JOIN users u ON u.id = r.user_id
+        WHERE r.car_id = $1 AND r.status NOT IN ('cancelled', 'rejected')
+        ORDER BY r.pickup_date
+      `, [car.car_id]);
+
+      result.push({
+        car_id: car.car_id,
+        car_name: car.car_name,
+        reservations,
+      });
+    }
+
+    res.json({ calendar: result });
   } catch (err) { next(err); }
 });
 
@@ -154,17 +168,18 @@ router.post('/cars', requireManager, async (req, res, next) => {
       deposit, description, features, is_featured } = req.body;
 
     const slug = `${brand}-${model}-${year}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const id = uuidv4();
 
-    const { rows } = await query(`
-      INSERT INTO cars (brand, model, year, slug, category, fuel, transmission, seats, doors,
+    await query(`
+      INSERT INTO cars (id, brand, model, year, slug, category, fuel, transmission, seats, doors,
         horsepower, engine_cc, color, license_plate, vin, mileage, price_per_day, price_per_week,
         deposit, description, features, is_featured)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-      RETURNING *
-    `, [brand, model, year, slug, category, fuel, transmission, seats || 5, doors || 4,
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+    `, [id, brand, model, year, slug, category, fuel, transmission, seats || 5, doors || 4,
       horsepower, engine_cc, color, license_plate, vin, mileage || 0, price_per_day, price_per_week,
-      deposit || 0, description, features || [], is_featured || false]);
+      deposit || 0, description, features ? JSON.stringify(features) : '[]', is_featured || false]);
 
+    const { rows } = await query('SELECT * FROM cars WHERE id = $1', [id]);
     res.status(201).json({ car: rows[0] });
   } catch (err) { next(err); }
 });
@@ -175,7 +190,7 @@ router.put('/cars/:id', requireManager, async (req, res, next) => {
       engine_cc, color, license_plate, mileage, price_per_day, price_per_week,
       deposit, description, features, is_featured } = req.body;
 
-    const { rows } = await query(`
+    await query(`
       UPDATE cars SET brand=COALESCE($1,brand), model=COALESCE($2,model), year=COALESCE($3,year),
         category=COALESCE($4,category), fuel=COALESCE($5,fuel), transmission=COALESCE($6,transmission),
         seats=COALESCE($7,seats), doors=COALESCE($8,doors), horsepower=COALESCE($9,horsepower),
@@ -183,11 +198,12 @@ router.put('/cars/:id', requireManager, async (req, res, next) => {
         mileage=COALESCE($13,mileage), price_per_day=COALESCE($14,price_per_day),
         price_per_week=COALESCE($15,price_per_week), deposit=COALESCE($16,deposit),
         description=COALESCE($17,description), features=COALESCE($18,features), is_featured=COALESCE($19,is_featured)
-      WHERE id = $20 RETURNING *
+      WHERE id = $20
     `, [brand, model, year, category, fuel, transmission, seats, doors, horsepower,
       engine_cc, color, license_plate, mileage, price_per_day, price_per_week,
-      deposit, description, features, is_featured, req.params.id]);
+      deposit, description, features ? JSON.stringify(features) : null, is_featured, req.params.id]);
 
+    const { rows } = await query('SELECT * FROM cars WHERE id = $1', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Car not found' });
     res.json({ car: rows[0] });
   } catch (err) { next(err); }
@@ -195,7 +211,8 @@ router.put('/cars/:id', requireManager, async (req, res, next) => {
 
 router.delete('/cars/:id', requireManager, async (req, res, next) => {
   try {
-    const { rows } = await query('UPDATE cars SET is_available = false WHERE id = $1 RETURNING id', [req.params.id]);
+    await query('UPDATE cars SET is_available = false WHERE id = $1', [req.params.id]);
+    const { rows } = await query('SELECT id FROM cars WHERE id = $1', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Car not found' });
     res.json({ message: 'Car deactivated' });
   } catch (err) { next(err); }
@@ -203,10 +220,11 @@ router.delete('/cars/:id', requireManager, async (req, res, next) => {
 
 router.patch('/cars/:id/toggle', async (req, res, next) => {
   try {
-    const { rows } = await query(
-      'UPDATE cars SET is_available = NOT is_available WHERE id = $1 RETURNING id, is_available',
+    await query(
+      'UPDATE cars SET is_available = NOT is_available WHERE id = $1',
       [req.params.id]
     );
+    const { rows } = await query('SELECT id, is_available FROM cars WHERE id = $1', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Car not found' });
     res.json({ car: rows[0] });
   } catch (err) { next(err); }
@@ -226,11 +244,13 @@ router.post('/cars/:id/images', upload.array('images', 10), async (req, res, nex
 
       const url = `/uploads/${webpFilename}`;
       const isPrimary = uploaded.length === 0;
+      const imgId = uuidv4();
 
-      const { rows } = await query(
-        'INSERT INTO car_images (car_id, url, is_primary, sort_order) VALUES ($1,$2,$3,$4) RETURNING *',
-        [carId, url, isPrimary, uploaded.length]
+      await query(
+        'INSERT INTO car_images (id, car_id, url, is_primary, sort_order) VALUES ($1,$2,$3,$4,$5)',
+        [imgId, carId, url, isPrimary, uploaded.length]
       );
+      const { rows } = await query('SELECT * FROM car_images WHERE id = $1', [imgId]);
       uploaded.push(rows[0]);
     }
 
@@ -240,8 +260,9 @@ router.post('/cars/:id/images', upload.array('images', 10), async (req, res, nex
 
 router.delete('/cars/:carId/images/:imgId', async (req, res, next) => {
   try {
-    const { rows } = await query('DELETE FROM car_images WHERE id = $1 AND car_id = $2 RETURNING id', [req.params.imgId, req.params.carId]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Image not found' });
+    const { rows: existing } = await query('SELECT id FROM car_images WHERE id = $1 AND car_id = $2', [req.params.imgId, req.params.carId]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Image not found' });
+    await query('DELETE FROM car_images WHERE id = $1 AND car_id = $2', [req.params.imgId, req.params.carId]);
     res.json({ message: 'Image deleted' });
   } catch (err) { next(err); }
 });
@@ -255,7 +276,7 @@ router.get('/customers', async (req, res, next) => {
     let idx = 1;
 
     if (search) {
-      conditions.push(`(u.first_name || ' ' || u.last_name ILIKE $${idx} OR u.email ILIKE $${idx})`);
+      conditions.push(`(CONCAT(u.first_name, ' ', u.last_name) LIKE $${idx} OR u.email LIKE $${idx})`);
       params.push(`%${search}%`);
       idx++;
     }
@@ -314,10 +335,60 @@ router.put('/messages/:id/read', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Blog CRUD
+router.get('/blog', async (req, res, next) => {
+  try {
+    const { rows } = await query(`
+      SELECT bp.*, CONCAT(u.first_name, ' ', u.last_name) AS author_name
+      FROM blog_posts bp LEFT JOIN users u ON u.id = bp.author_id
+      ORDER BY bp.created_at DESC
+    `);
+    res.json({ posts: rows });
+  } catch (err) { next(err); }
+});
+
+router.post('/blog', requireManager, async (req, res, next) => {
+  try {
+    const { title, content, excerpt, is_published } = req.body;
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const id = uuidv4();
+    await query(`
+      INSERT INTO blog_posts (id, title, slug, content, excerpt, author_id, is_published, published_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [id, title, slug, content, excerpt || null, req.user.id, is_published || false, is_published ? new Date() : null]);
+    const { rows } = await query('SELECT * FROM blog_posts WHERE id = $1', [id]);
+    res.status(201).json({ post: rows[0] });
+  } catch (err) { next(err); }
+});
+
+router.put('/blog/:id', requireManager, async (req, res, next) => {
+  try {
+    const { title, content, excerpt, is_published } = req.body;
+    await query(`
+      UPDATE blog_posts SET title=COALESCE($1,title), content=COALESCE($2,content),
+        excerpt=COALESCE($3,excerpt), is_published=COALESCE($4,is_published),
+        published_at = CASE WHEN $4 = true AND published_at IS NULL THEN NOW() ELSE published_at END
+      WHERE id = $5
+    `, [title, content, excerpt, is_published, req.params.id]);
+    const { rows } = await query('SELECT * FROM blog_posts WHERE id = $1', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Post not found' });
+    res.json({ post: rows[0] });
+  } catch (err) { next(err); }
+});
+
+router.delete('/blog/:id', requireManager, async (req, res, next) => {
+  try {
+    const { rows: existing } = await query('SELECT id FROM blog_posts WHERE id = $1', [req.params.id]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Post not found' });
+    await query('DELETE FROM blog_posts WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Post deleted' });
+  } catch (err) { next(err); }
+});
+
 // Settings
 router.get('/settings', async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT key, value FROM settings');
+    const { rows } = await query('SELECT `key`, value FROM settings');
     const settings = {};
     rows.forEach(r => { settings[r.key] = r.value; });
     res.json({ settings });
@@ -329,7 +400,7 @@ router.put('/settings', async (req, res, next) => {
     const entries = Object.entries(req.body);
     for (const [key, value] of entries) {
       await query(
-        'INSERT INTO settings (key, value) VALUES ($1, $2::jsonb) ON CONFLICT (key) DO UPDATE SET value = $2::jsonb',
+        'INSERT INTO settings (`key`, value) VALUES ($1, $2) ON DUPLICATE KEY UPDATE value = $2',
         [key, JSON.stringify(value)]
       );
     }

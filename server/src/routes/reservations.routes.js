@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query, getClient } from '../db/pool.js';
+import { v4 as uuidv4 } from 'uuid';
+import { query, getConnection } from '../db/pool.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
@@ -28,9 +29,21 @@ function generateReservationNo() {
   return `DRC-${date}-${rand}`;
 }
 
+// Helper to run a query on a connection with $N -> ? conversion
+async function connQuery(conn, sql, params = []) {
+  let mysqlSql = sql;
+  const maxParam = params.length;
+  for (let i = maxParam; i >= 1; i--) {
+    mysqlSql = mysqlSql.replaceAll(`$${i}`, '?');
+  }
+  mysqlSql = mysqlSql.replace(/::\w+/g, '');
+  const [rows] = await conn.execute(mysqlSql, params);
+  return { rows };
+}
+
 // Create reservation
 router.post('/', optionalAuth, validate(reservationSchema), async (req, res, next) => {
-  const client = await getClient();
+  const conn = await getConnection();
   try {
     const data = req.validated;
     const pickupDate = new Date(data.pickup_date);
@@ -41,7 +54,7 @@ router.post('/', optionalAuth, validate(reservationSchema), async (req, res, nex
     }
 
     // Check availability
-    const { rows: avail } = await client.query(`
+    const { rows: avail } = await connQuery(conn, `
       SELECT EXISTS (
         SELECT 1 FROM reservations
         WHERE car_id = $1 AND status IN ('confirmed', 'active')
@@ -54,16 +67,16 @@ router.post('/', optionalAuth, validate(reservationSchema), async (req, res, nex
     }
 
     // Get car price
-    const { rows: carRows } = await client.query('SELECT price_per_day FROM cars WHERE id = $1', [data.car_id]);
+    const { rows: carRows } = await connQuery(conn, 'SELECT price_per_day FROM cars WHERE id = $1', [data.car_id]);
     if (carRows.length === 0) return res.status(404).json({ error: 'Car not found' });
 
     const totalDays = Math.max(1, Math.ceil((dropoffDate - pickupDate) / (1000 * 60 * 60 * 24)));
     const dailyRate = parseFloat(carRows[0].price_per_day);
 
     // Check seasonal pricing
-    const { rows: seasonal } = await client.query(`
+    const { rows: seasonal } = await connQuery(conn, `
       SELECT multiplier FROM seasonal_pricing
-      WHERE car_id = $1 AND start_date <= $2::date AND end_date >= $3::date
+      WHERE car_id = $1 AND start_date <= $2 AND end_date >= $3
       LIMIT 1
     `, [data.car_id, data.pickup_date, data.dropoff_date]);
     const multiplier = seasonal.length > 0 ? parseFloat(seasonal[0].multiplier) : 1.0;
@@ -75,7 +88,7 @@ router.post('/', optionalAuth, validate(reservationSchema), async (req, res, nex
     const extrasToInsert = [];
     if (data.extras && data.extras.length > 0) {
       for (const ext of data.extras) {
-        const { rows: extRows } = await client.query('SELECT price_per_day FROM extras WHERE id = $1 AND is_active = true', [ext.extra_id]);
+        const { rows: extRows } = await connQuery(conn, 'SELECT price_per_day FROM extras WHERE id = $1 AND is_active = true', [ext.extra_id]);
         if (extRows.length > 0) {
           const extPrice = parseFloat(extRows[0].price_per_day) * totalDays * ext.quantity;
           extrasTotal += extPrice;
@@ -86,35 +99,38 @@ router.post('/', optionalAuth, validate(reservationSchema), async (req, res, nex
 
     const totalPrice = basePrice + extrasTotal;
     const reservationNo = generateReservationNo();
+    const reservationId = uuidv4();
 
-    await client.query('BEGIN');
+    await conn.beginTransaction();
 
-    const { rows: resRows } = await client.query(`
-      INSERT INTO reservations (reservation_no, user_id, car_id, pickup_location, dropoff_location,
+    await connQuery(conn, `
+      INSERT INTO reservations (id, reservation_no, user_id, car_id, pickup_location, dropoff_location,
         pickup_date, dropoff_date, total_days, daily_rate, extras_total, total_price,
         guest_name, guest_email, guest_phone, notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-      RETURNING *
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
     `, [
-      reservationNo, req.user?.id || null, data.car_id, data.pickup_location, data.dropoff_location,
+      reservationId, reservationNo, req.user?.id || null, data.car_id, data.pickup_location, data.dropoff_location,
       data.pickup_date, data.dropoff_date, totalDays, dailyRate * multiplier, extrasTotal, totalPrice,
       data.guest_name || null, data.guest_email || null, data.guest_phone || null, data.notes || null,
     ]);
 
     for (const ext of extrasToInsert) {
-      await client.query(
-        'INSERT INTO reservation_extras (reservation_id, extra_id, quantity, price) VALUES ($1,$2,$3,$4)',
-        [resRows[0].id, ext.extra_id, ext.quantity, ext.price]
+      const extId = uuidv4();
+      await connQuery(conn,
+        'INSERT INTO reservation_extras (id, reservation_id, extra_id, quantity, price) VALUES ($1,$2,$3,$4,$5)',
+        [extId, reservationId, ext.extra_id, ext.quantity, ext.price]
       );
     }
 
-    await client.query('COMMIT');
+    await conn.commit();
+
+    const { rows: resRows } = await connQuery(conn, 'SELECT * FROM reservations WHERE id = $1', [reservationId]);
     res.status(201).json({ reservation: resRows[0] });
   } catch (err) {
-    await client.query('ROLLBACK');
+    await conn.rollback();
     next(err);
   } finally {
-    client.release();
+    conn.release();
   }
 });
 
@@ -164,13 +180,16 @@ router.get('/:id', authenticate, async (req, res, next) => {
 // Cancel reservation
 router.put('/:id/cancel', authenticate, async (req, res, next) => {
   try {
-    const { rows } = await query(`
+    await query(`
       UPDATE reservations SET status = 'cancelled'
       WHERE id = $1 AND user_id = $2 AND status IN ('pending', 'confirmed')
-      RETURNING *
     `, [req.params.id, req.user.id]);
 
-    if (rows.length === 0) return res.status(404).json({ error: 'Reservation not found or cannot be cancelled' });
+    const { rows } = await query('SELECT * FROM reservations WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+
+    if (rows.length === 0 || rows[0].status !== 'cancelled') {
+      return res.status(404).json({ error: 'Reservation not found or cannot be cancelled' });
+    }
     res.json({ reservation: rows[0] });
   } catch (err) { next(err); }
 });

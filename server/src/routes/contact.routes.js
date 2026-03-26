@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/pool.js';
 import { validate } from '../middleware/validate.js';
 
@@ -16,10 +17,12 @@ const contactSchema = z.object({
 router.post('/', validate(contactSchema), async (req, res, next) => {
   try {
     const { name, email, phone, subject, message } = req.validated;
-    const { rows } = await query(
-      'INSERT INTO contact_messages (name, email, phone, subject, message) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-      [name, email, phone || null, subject || null, message]
+    const id = uuidv4();
+    await query(
+      'INSERT INTO contact_messages (id, name, email, phone, subject, message) VALUES ($1,$2,$3,$4,$5,$6)',
+      [id, name, email, phone || null, subject || null, message]
     );
+    const { rows } = await query('SELECT * FROM contact_messages WHERE id = $1', [id]);
     res.status(201).json({ message: 'Message sent successfully', id: rows[0].id });
   } catch (err) { next(err); }
 });
