@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Drenas Rent a Car | Premium Car Rental in Kosovo",
+  title: "Nexora Rent a Car | Premium Car Rental in Kosovo",
   description: "Premium car rental service in Drenas, Kosovo. Browse luxury, SUV, and economy vehicles. Book online with instant confirmation.",
-  keywords: "rent a car, Drenas, Kosovo, car rental, luxury cars, SUV rental",
+  keywords: "rent a car, Drenas, Kosovo, car rental, luxury cars, SUV rental, Nexora",
 };
 
 export default function RootLayout({

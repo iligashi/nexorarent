@@ -3,28 +3,33 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Phone, ChevronDown } from 'lucide-react';
+import { Menu, X, Phone, ChevronDown, Globe } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
+import { useLanguageStore } from '@/stores/languageStore';
+import { LogoFull } from '@/components/ui/Logo';
 import { cn } from '@/lib/utils';
-
-const navLinks = [
-  { href: '/', label: 'Home' },
-  { href: '/cars', label: 'Garage' },
-  { href: '/about', label: 'About Us' },
-  { href: '/blog', label: 'Blog' },
-  { href: '/contact', label: 'Contact' },
-];
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuthStore();
+  const { lang, setLang, t } = useLanguageStore();
+
+  const navLinks = [
+    { href: '/', label: t.home },
+    { href: '/cars', label: t.garage },
+    { href: '/about', label: t.aboutUs },
+    { href: '/blog', label: t.blog },
+    { href: '/contact', label: t.contact },
+  ];
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 80);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const toggleLang = () => setLang(lang === 'en' ? 'sq' : 'en');
 
   return (
     <nav
@@ -37,16 +42,8 @@ export default function Navbar() {
     >
       <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-accent flex items-center justify-center">
-            <span className="font-outfit font-bold text-white text-sm leading-tight">
-              DR
-            </span>
-          </div>
-          <div className="hidden sm:block">
-            <p className="font-outfit font-bold text-white text-lg leading-none">DRENAS</p>
-            <p className="text-text-muted text-[10px] tracking-[3px] uppercase">Rent a Car</p>
-          </div>
+        <Link href="/" className="flex items-center">
+          <LogoFull size={42} />
         </Link>
 
         {/* Desktop Nav */}
@@ -64,6 +61,16 @@ export default function Navbar() {
 
         {/* Right side */}
         <div className="hidden lg:flex items-center gap-4">
+          {/* Language switcher */}
+          <button
+            onClick={toggleLang}
+            className="flex items-center gap-1.5 text-text-secondary hover:text-white transition-colors text-sm px-2 py-1 rounded border border-border hover:border-accent/50"
+            title={lang === 'en' ? 'Shqip' : 'English'}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span className="font-medium uppercase text-xs">{lang === 'en' ? 'SQ' : 'EN'}</span>
+          </button>
+
           {user ? (
             <div className="relative group">
               <button className="flex items-center gap-2 text-text-secondary hover:text-white transition-colors text-sm">
@@ -72,30 +79,30 @@ export default function Navbar() {
               <div className="absolute right-0 top-full mt-2 w-48 bg-bg-secondary border border-border rounded-lg py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
                 {['staff', 'manager', 'owner'].includes(user.role) && (
                   <Link href="/admin" className="block px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-bg-tertiary">
-                    Dashboard
+                    {t.dashboard}
                   </Link>
                 )}
                 <Link href="/my-bookings" className="block px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-bg-tertiary">
-                  My Bookings
+                  {t.myBookings}
                 </Link>
                 <button
                   onClick={logout}
                   className="w-full text-left px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-bg-tertiary"
                 >
-                  Logout
+                  {t.logout}
                 </button>
               </div>
             </div>
           ) : (
             <Link href="/auth/login" className="text-text-secondary hover:text-white text-sm">
-              Login
+              {t.login}
             </Link>
           )}
           <Link
             href="/reserve"
             className="bg-accent hover:bg-accent-hover text-white px-6 py-2.5 text-sm font-semibold tracking-wide transition-all glow-accent rounded"
           >
-            Reserve Now
+            {t.reserveNow}
           </Link>
           <a href="tel:+38344123456" className="flex items-center gap-2 text-text-secondary hover:text-accent transition-colors">
             <Phone className="w-4 h-4" />
@@ -104,12 +111,21 @@ export default function Navbar() {
         </div>
 
         {/* Mobile toggle */}
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="lg:hidden text-white p-2"
-        >
-          {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex lg:hidden items-center gap-3">
+          <button
+            onClick={toggleLang}
+            className="flex items-center gap-1 text-text-secondary hover:text-white text-xs px-2 py-1 rounded border border-border"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span className="font-medium uppercase">{lang === 'en' ? 'SQ' : 'EN'}</span>
+          </button>
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="text-white p-2"
+          >
+            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Menu */}
@@ -141,18 +157,18 @@ export default function Navbar() {
               <hr className="border-border" />
               {user ? (
                 <>
-                  <Link href="/my-bookings" onClick={() => setMobileOpen(false)} className="text-text-secondary py-2">My Bookings</Link>
-                  <button onClick={() => { logout(); setMobileOpen(false); }} className="text-text-secondary text-left py-2">Logout</button>
+                  <Link href="/my-bookings" onClick={() => setMobileOpen(false)} className="text-text-secondary py-2">{t.myBookings}</Link>
+                  <button onClick={() => { logout(); setMobileOpen(false); }} className="text-text-secondary text-left py-2">{t.logout}</button>
                 </>
               ) : (
-                <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="text-text-secondary py-2">Login</Link>
+                <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="text-text-secondary py-2">{t.login}</Link>
               )}
               <Link
                 href="/reserve"
                 onClick={() => setMobileOpen(false)}
                 className="bg-accent text-white text-center py-3 font-semibold rounded mt-2"
               >
-                Reserve Now
+                {t.reserveNow}
               </Link>
             </div>
           </motion.div>

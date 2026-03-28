@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { Save, Check } from 'lucide-react';
+import { useLanguageStore } from '@/stores/languageStore';
 
 export default function AdminSettingsPage() {
+  const { t } = useLanguageStore();
   const [settings, setSettings] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,7 +86,7 @@ export default function AdminSettingsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900 font-outfit">Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900 font-outfit">{t.settings}</h1>
         <div className="bg-white rounded-xl p-6 animate-pulse space-y-4">
           {[...Array(6)].map((_, i) => <div key={i} className="h-10 bg-gray-100 rounded" />)}
         </div>
@@ -95,42 +97,42 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 font-outfit">Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900 font-outfit">{t.settings}</h1>
         <button
           onClick={handleSave}
           disabled={saving}
           className="inline-flex items-center gap-2 bg-[#FF4D30] text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#E6442B] transition-colors disabled:opacity-50"
         >
-          {saved ? <><Check className="w-4 h-4" /> Saved</> : saving ? 'Saving...' : <><Save className="w-4 h-4" /> Save Changes</>}
+          {saved ? <><Check className="w-4 h-4" /> {t.saved}</> : saving ? t.saving : <><Save className="w-4 h-4" /> {t.saveChanges}</>}
         </button>
       </div>
 
       {/* Company Info */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-5">Company Information</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-5">{t.companyInfo}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label className={labelClass}>Company Name</label>
+            <label className={labelClass}>{t.companyName}</label>
             <input className={inputClass} value={company.name} onChange={e => setCompany(c => ({ ...c, name: e.target.value }))} />
           </div>
           <div>
-            <label className={labelClass}>Phone</label>
+            <label className={labelClass}>{t.phone}</label>
             <input className={inputClass} value={company.phone} onChange={e => setCompany(c => ({ ...c, phone: e.target.value }))} />
           </div>
           <div>
-            <label className={labelClass}>Email</label>
+            <label className={labelClass}>{t.email}</label>
             <input type="email" className={inputClass} value={company.email} onChange={e => setCompany(c => ({ ...c, email: e.target.value }))} />
           </div>
           <div>
-            <label className={labelClass}>WhatsApp Number</label>
+            <label className={labelClass}>{t.whatsappNumber}</label>
             <input className={inputClass} value={company.whatsapp} onChange={e => setCompany(c => ({ ...c, whatsapp: e.target.value }))} />
           </div>
           <div>
-            <label className={labelClass}>Address</label>
+            <label className={labelClass}>{t.address}</label>
             <input className={inputClass} value={company.address} onChange={e => setCompany(c => ({ ...c, address: e.target.value }))} />
           </div>
           <div>
-            <label className={labelClass}>City</label>
+            <label className={labelClass}>{t.city}</label>
             <input className={inputClass} value={company.city} onChange={e => setCompany(c => ({ ...c, city: e.target.value }))} />
           </div>
         </div>
@@ -138,14 +140,14 @@ export default function AdminSettingsPage() {
 
       {/* Working Hours */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-5">Working Hours</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-5">{t.workingHoursTitle}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label className={labelClass}>Weekdays (Mon-Fri)</label>
+            <label className={labelClass}>{t.weekdays}</label>
             <input className={inputClass} placeholder="08:00 - 20:00" value={company.working_hours_weekday} onChange={e => setCompany(c => ({ ...c, working_hours_weekday: e.target.value }))} />
           </div>
           <div>
-            <label className={labelClass}>Weekends (Sat-Sun)</label>
+            <label className={labelClass}>{t.weekends}</label>
             <input className={inputClass} placeholder="09:00 - 18:00" value={company.working_hours_weekend} onChange={e => setCompany(c => ({ ...c, working_hours_weekend: e.target.value }))} />
           </div>
         </div>
@@ -153,18 +155,18 @@ export default function AdminSettingsPage() {
 
       {/* Social Links */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-5">Social Media</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-5">{t.socialMedia}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div>
-            <label className={labelClass}>Facebook URL</label>
+            <label className={labelClass}>{t.facebookUrl}</label>
             <input className={inputClass} placeholder="https://facebook.com/..." value={company.facebook} onChange={e => setCompany(c => ({ ...c, facebook: e.target.value }))} />
           </div>
           <div>
-            <label className={labelClass}>Instagram URL</label>
+            <label className={labelClass}>{t.instagramUrl}</label>
             <input className={inputClass} placeholder="https://instagram.com/..." value={company.instagram} onChange={e => setCompany(c => ({ ...c, instagram: e.target.value }))} />
           </div>
           <div>
-            <label className={labelClass}>TikTok URL</label>
+            <label className={labelClass}>{t.tiktokUrl}</label>
             <input className={inputClass} placeholder="https://tiktok.com/..." value={company.tiktok} onChange={e => setCompany(c => ({ ...c, tiktok: e.target.value }))} />
           </div>
         </div>

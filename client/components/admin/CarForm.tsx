@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import type { Car, CarImage } from '@/types';
 import { Plus, Trash2, Star, ImageIcon } from 'lucide-react';
+import { useLanguageStore } from '@/stores/languageStore';
 
-const categories = ['economy', 'compact', 'sedan', 'suv', 'luxury', 'van', 'sports'];
-const fuelTypes = ['petrol', 'diesel', 'hybrid', 'electric'];
-const transmissions = ['manual', 'automatic'];
-const commonFeatures = ['GPS', 'Air Conditioning', 'Bluetooth', 'USB', 'Cruise Control', 'Parking Sensors', 'Backup Camera', 'Heated Seats', 'Leather Seats', 'Sunroof', 'Apple CarPlay', 'Android Auto', 'Keyless Entry', 'ABS', 'Airbags'];
+const categories = ['economy', 'compact', 'sedan', 'suv', 'luxury', 'van', 'sports'] as const;
+const fuelTypes = ['petrol', 'diesel', 'hybrid', 'electric'] as const;
+const transmissions = ['manual', 'automatic'] as const;
+const commonFeatures = ['GPS', 'Air Conditioning', 'Bluetooth', 'USB', 'Cruise Control', 'Parking Sensors', 'Backup Camera', 'Heated Seats', 'Leather Seats', 'Sunroof', 'Apple CarPlay', 'Android Auto', 'Keyless Entry', 'ABS', 'Airbags'] as const;
 
 interface CarFormProps {
   car?: Car;
@@ -17,6 +18,14 @@ interface CarFormProps {
 }
 
 export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
+  const { t } = useLanguageStore();
+
+  const categoryLabels: Record<string, string> = { economy: t.economy, compact: t.compact, sedan: t.sedan, suv: t.suv, luxury: t.luxury, van: t.van, sports: t.sports };
+  const fuelLabels: Record<string, string> = { petrol: t.petrol, diesel: t.diesel, hybrid: t.hybrid, electric: t.electric };
+  const transmissionLabels: Record<string, string> = { manual: t.manual, automatic: t.automatic };
+  const featureLabels: Record<string, string> = { 'GPS': t.gps, 'Air Conditioning': t.airConditioning, 'Bluetooth': t.bluetooth, 'USB': t.usb, 'Cruise Control': t.cruiseControl, 'Parking Sensors': t.parkingSensors, 'Backup Camera': t.backupCamera, 'Heated Seats': t.heatedSeats, 'Leather Seats': t.leatherSeats, 'Sunroof': t.sunroof, 'Apple CarPlay': t.appleCarplay, 'Android Auto': t.androidAuto, 'Keyless Entry': t.keylessEntry, 'ABS': t.abs, 'Airbags': t.airbags };
+  const tabs = [t.details, t.pricing, t.imagesTab, t.featuresTab];
+
   const [activeTab, setActiveTab] = useState(0);
   const [form, setForm] = useState({
     brand: car?.brand || '',
@@ -107,7 +116,6 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
     onSubmit(form);
   };
 
-  const tabs = ['Details', 'Pricing', 'Images', 'Features'];
   const inputClass = 'w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF4D30]/20 focus:border-[#FF4D30]';
   const labelClass = 'block text-sm font-medium text-gray-700 mb-1.5';
 
@@ -134,65 +142,65 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
         {activeTab === 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className={labelClass}>Brand *</label>
+              <label className={labelClass}>{t.brand} *</label>
               <input className={inputClass} value={form.brand} onChange={e => update('brand', e.target.value)} required />
             </div>
             <div>
-              <label className={labelClass}>Model *</label>
+              <label className={labelClass}>{t.model} *</label>
               <input className={inputClass} value={form.model} onChange={e => update('model', e.target.value)} required />
             </div>
             <div>
-              <label className={labelClass}>Year *</label>
+              <label className={labelClass}>{t.year} *</label>
               <input type="number" className={inputClass} value={form.year} onChange={e => update('year', Number(e.target.value))} required />
             </div>
             <div>
-              <label className={labelClass}>Category *</label>
+              <label className={labelClass}>{t.category} *</label>
               <select className={inputClass} value={form.category} onChange={e => update('category', e.target.value)}>
-                {categories.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                {categories.map(c => <option key={c} value={c}>{categoryLabels[c]}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelClass}>Fuel Type *</label>
+              <label className={labelClass}>{t.fuelType} *</label>
               <select className={inputClass} value={form.fuel} onChange={e => update('fuel', e.target.value)}>
-                {fuelTypes.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
+                {fuelTypes.map(f => <option key={f} value={f}>{fuelLabels[f]}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelClass}>Transmission *</label>
+              <label className={labelClass}>{t.transmission} *</label>
               <select className={inputClass} value={form.transmission} onChange={e => update('transmission', e.target.value)}>
-                {transmissions.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                {transmissions.map(tr => <option key={tr} value={tr}>{transmissionLabels[tr]}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelClass}>Seats</label>
+              <label className={labelClass}>{t.seats}</label>
               <input type="number" className={inputClass} value={form.seats} onChange={e => update('seats', Number(e.target.value))} />
             </div>
             <div>
-              <label className={labelClass}>Doors</label>
+              <label className={labelClass}>{t.doors}</label>
               <input type="number" className={inputClass} value={form.doors} onChange={e => update('doors', Number(e.target.value))} />
             </div>
             <div>
-              <label className={labelClass}>Horsepower</label>
+              <label className={labelClass}>{t.horsepower}</label>
               <input type="number" className={inputClass} value={form.horsepower} onChange={e => update('horsepower', Number(e.target.value))} />
             </div>
             <div>
-              <label className={labelClass}>Engine CC</label>
+              <label className={labelClass}>{t.engineCC}</label>
               <input type="number" className={inputClass} value={form.engine_cc} onChange={e => update('engine_cc', Number(e.target.value))} />
             </div>
             <div>
-              <label className={labelClass}>Color</label>
+              <label className={labelClass}>{t.color}</label>
               <input className={inputClass} value={form.color} onChange={e => update('color', e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>License Plate</label>
+              <label className={labelClass}>{t.licensePlate}</label>
               <input className={inputClass} value={form.license_plate} onChange={e => update('license_plate', e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>Mileage (km)</label>
+              <label className={labelClass}>{t.mileageKm}</label>
               <input type="number" className={inputClass} value={form.mileage} onChange={e => update('mileage', Number(e.target.value))} />
             </div>
             <div className="md:col-span-2">
-              <label className={labelClass}>Description</label>
+              <label className={labelClass}>{t.description}</label>
               <textarea rows={4} className={inputClass + ' resize-none'} value={form.description} onChange={e => update('description', e.target.value)} />
             </div>
           </div>
@@ -202,20 +210,20 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
         {activeTab === 1 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-xl">
             <div>
-              <label className={labelClass}>Price Per Day (EUR) *</label>
+              <label className={labelClass}>{t.pricePerDayEur} *</label>
               <input type="number" step="0.01" className={inputClass} value={form.price_per_day} onChange={e => update('price_per_day', e.target.value)} required />
             </div>
             <div>
-              <label className={labelClass}>Price Per Week (EUR)</label>
+              <label className={labelClass}>{t.pricePerWeekEur}</label>
               <input type="number" step="0.01" className={inputClass} value={form.price_per_week || ''} onChange={e => update('price_per_week', e.target.value || null)} />
             </div>
             <div>
-              <label className={labelClass}>Deposit (EUR)</label>
+              <label className={labelClass}>{t.depositEur}</label>
               <input type="number" step="0.01" className={inputClass} value={form.deposit} onChange={e => update('deposit', Number(e.target.value))} />
             </div>
             <div className="flex items-center gap-3 pt-6">
               <input type="checkbox" id="featured" checked={form.is_featured} onChange={e => update('is_featured', e.target.checked)} className="w-4 h-4 text-[#FF4D30] rounded" />
-              <label htmlFor="featured" className="text-sm font-medium text-gray-700">Featured car (shown on homepage)</label>
+              <label htmlFor="featured" className="text-sm font-medium text-gray-700">{t.featuredCar}</label>
             </div>
           </div>
         )}
@@ -226,13 +234,13 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
             {!car?.id ? (
               <div className="text-center py-12 text-gray-400">
                 <ImageIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-sm">Save the car first, then you can add images.</p>
+                <p className="text-sm">{t.saveCarFirst}</p>
               </div>
             ) : (
               <>
                 {/* Add image by URL */}
                 <div className="mb-6">
-                  <label className={labelClass}>Add Image URL</label>
+                  <label className={labelClass}>{t.addImageUrl}</label>
                   <div className="flex gap-3">
                     <input
                       className={inputClass}
@@ -246,10 +254,10 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
                       disabled={!newImageUrl || addingImage}
                       className="px-5 py-2.5 bg-[#FF4D30] text-white text-sm font-semibold rounded-lg hover:bg-[#E6442B] transition-colors disabled:opacity-50 whitespace-nowrap flex items-center gap-2"
                     >
-                      <Plus className="w-4 h-4" /> {addingImage ? 'Adding...' : 'Add Image'}
+                      <Plus className="w-4 h-4" /> {addingImage ? t.adding : t.addImage}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1.5">Paste any image URL. The first image will be set as the primary/cover image.</p>
+                  <p className="text-xs text-gray-400 mt-1.5">{t.pasteImageUrl}</p>
                 </div>
 
                 {/* Image grid */}
@@ -266,7 +274,7 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
                         </div>
                         {img.is_primary && (
                           <div className="absolute top-2 left-2 bg-[#FF4D30] text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <Star className="w-3 h-3" /> Primary
+                            <Star className="w-3 h-3" /> {t.primaryImage}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -275,7 +283,7 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
                               type="button"
                               onClick={() => setPrimary(img.id)}
                               className="p-2 bg-white rounded-lg text-gray-700 hover:bg-gray-100 text-xs font-medium"
-                              title="Set as primary"
+                              title={t.setAsPrimary}
                             >
                               <Star className="w-4 h-4" />
                             </button>
@@ -284,7 +292,7 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
                             type="button"
                             onClick={() => deleteImage(img.id)}
                             className="p-2 bg-red-500 rounded-lg text-white hover:bg-red-600"
-                            title="Delete"
+                            title={t.delete}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -295,7 +303,7 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
                 ) : (
                   <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
                     <ImageIcon className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">No images yet. Add one above.</p>
+                    <p className="text-sm">{t.noImagesYet}</p>
                   </div>
                 )}
               </>
@@ -306,7 +314,7 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
         {/* Features tab */}
         {activeTab === 3 && (
           <div>
-            <p className="text-sm text-gray-500 mb-4">Select the features this car has:</p>
+            <p className="text-sm text-gray-500 mb-4">{t.selectFeatures}</p>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {commonFeatures.map(feature => (
                 <label key={feature} className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors ${form.features.includes(feature) ? 'bg-[#FF4D30]/5 border-[#FF4D30] text-[#FF4D30]' : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'}`}>
@@ -316,7 +324,7 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
                     onChange={() => toggleFeature(feature)}
                     className="sr-only"
                   />
-                  <span className="text-sm font-medium">{feature}</span>
+                  <span className="text-sm font-medium">{featureLabels[feature] || feature}</span>
                 </label>
               ))}
             </div>
@@ -326,13 +334,13 @@ export default function CarForm({ car, onSubmit, loading }: CarFormProps) {
 
       {/* Submit */}
       <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-        <a href="/admin/cars" className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors">Cancel</a>
+        <a href="/admin/cars" className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors">{t.cancel}</a>
         <button
           type="submit"
           disabled={loading}
           className="px-6 py-2.5 bg-[#FF4D30] text-white text-sm font-semibold rounded-lg hover:bg-[#E6442B] transition-colors disabled:opacity-50"
         >
-          {loading ? 'Saving...' : car ? 'Update Car' : 'Create Car'}
+          {loading ? t.saving : car ? t.updateCar : t.createCar}
         </button>
       </div>
     </form>

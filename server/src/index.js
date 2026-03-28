@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
@@ -17,6 +18,13 @@ import reviewRoutes from './routes/reviews.routes.js';
 import blogRoutes from './routes/blog.routes.js';
 import contactRoutes from './routes/contact.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
+import adminReviewRoutes from './routes/admin.reviews.routes.js';
+import adminExpenseRoutes from './routes/admin.expenses.routes.js';
+import adminMaintenanceRoutes from './routes/admin.maintenance.routes.js';
+import adminPricingRoutes from './routes/admin.pricing.routes.js';
+import adminLoyaltyRoutes from './routes/admin.loyalty.routes.js';
+import adminNotificationRoutes from './routes/admin.notifications.routes.js';
+import adminDeliveryRoutes from './routes/admin.delivery.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -27,6 +35,7 @@ app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3000',
   credentials: true,
 }));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -60,6 +69,13 @@ app.use('/api/v1/reviews', reviewRoutes);
 app.use('/api/v1/blog', blogRoutes);
 app.use('/api/v1/contact', contactRoutes);
 app.use('/api/v1/upload', uploadRoutes);
+app.use('/api/v1/admin/reviews', adminReviewRoutes);
+app.use('/api/v1/admin/expenses', adminExpenseRoutes);
+app.use('/api/v1/admin/maintenance', adminMaintenanceRoutes);
+app.use('/api/v1/admin/pricing', adminPricingRoutes);
+app.use('/api/v1/admin/loyalty', adminLoyaltyRoutes);
+app.use('/api/v1/admin/notifications', adminNotificationRoutes);
+app.use('/api/v1/admin/deliveries', adminDeliveryRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

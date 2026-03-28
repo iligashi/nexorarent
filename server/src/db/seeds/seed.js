@@ -19,7 +19,7 @@ async function seed() {
     await conn.execute(
       `INSERT IGNORE INTO users (id, email, password_hash, first_name, last_name, phone, role, is_verified)
        VALUES (?, ?, ?, ?, ?, ?, ?, true)`,
-      [adminId, 'admin@drenasrentacar.com', passwordHash, 'Admin', 'Drenas', '+383 44 123 456', 'owner']
+      [adminId, 'admin@nexorarentacar.com', passwordHash, 'Admin', 'Drenas', '+383 44 123 456', 'owner']
     );
 
     // Locations
@@ -75,9 +75,9 @@ async function seed() {
 
     // Settings
     const settings = [
-      ['company_name', JSON.stringify('Drenas Rent a Car')],
+      ['company_name', JSON.stringify('Nexora Rent a Car')],
       ['company_phone', JSON.stringify('+383 44 123 456')],
-      ['company_email', JSON.stringify('info@drenasrentacar.com')],
+      ['company_email', JSON.stringify('info@nexorarentacar.com')],
       ['company_address', JSON.stringify('Rruga Adem Jashari, Drenas, Kosovo')],
       ['working_hours_weekday', JSON.stringify('08:00 - 20:00')],
       ['working_hours_weekend', JSON.stringify('09:00 - 18:00')],

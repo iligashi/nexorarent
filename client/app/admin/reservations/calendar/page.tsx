@@ -5,6 +5,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLanguageStore } from '@/stores/languageStore';
 
 interface CalendarReservation {
   id: string;
@@ -32,6 +33,14 @@ export default function ReservationCalendarPage() {
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'week' | 'month'>('month');
+  const { t } = useLanguageStore();
+
+  const statusTranslations: Record<string, string> = {
+    pending: t.pending,
+    confirmed: t.confirmed,
+    active: t.active,
+    completed: t.completed,
+  };
 
   useEffect(() => {
     const fetchCalendar = async () => {
@@ -108,12 +117,12 @@ export default function ReservationCalendarPage() {
           <Link href="/admin/reservations" className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5 text-gray-500" />
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 font-outfit">Reservation Calendar</h1>
+          <h1 className="text-2xl font-bold text-gray-900 font-outfit">{t.reservationCalendar}</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-            <button onClick={() => setView('week')} className={`px-3 py-1.5 text-sm rounded-md font-medium ${view === 'week' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Week</button>
-            <button onClick={() => setView('month')} className={`px-3 py-1.5 text-sm rounded-md font-medium ${view === 'month' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Month</button>
+            <button onClick={() => setView('week')} className={`px-3 py-1.5 text-sm rounded-md font-medium ${view === 'week' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>{t.week}</button>
+            <button onClick={() => setView('month')} className={`px-3 py-1.5 text-sm rounded-md font-medium ${view === 'month' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>{t.month}</button>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-4 h-4 text-gray-600" /></button>
@@ -130,7 +139,7 @@ export default function ReservationCalendarPage() {
         {Object.entries(statusColors).map(([status, color]) => (
           <div key={status} className="flex items-center gap-1.5">
             <div className={cn('w-3 h-3 rounded', color)} />
-            <span className="capitalize text-gray-600">{status}</span>
+            <span className="capitalize text-gray-600">{statusTranslations[status] || status}</span>
           </div>
         ))}
       </div>
@@ -141,7 +150,7 @@ export default function ReservationCalendarPage() {
           <thead>
             <tr className="border-b border-gray-100">
               <th className="sticky left-0 bg-white z-10 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase w-[180px] border-r border-gray-100">
-                Car
+                {t.car}
               </th>
               {days.map(day => (
                 <th key={day.toISOString()} className={cn(
@@ -185,7 +194,7 @@ export default function ReservationCalendarPage() {
             {calendar.filter(c => c.reservations?.some(r => r.id)).length === 0 && (
               <tr>
                 <td colSpan={days.length + 1} className="px-6 py-12 text-center text-sm text-gray-400">
-                  No reservations to display
+                  {t.noReservationsDisplay}
                 </td>
               </tr>
             )}

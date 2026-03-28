@@ -7,8 +7,10 @@ import api from '@/lib/api';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { toast } from '@/components/ui/Toast';
+import { useLanguageStore } from '@/stores/languageStore';
 
 export default function ContactPage() {
+  const { t } = useLanguageStore();
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [loading, setLoading] = useState(false);
   const [phoneError, setPhoneError] = useState('');
@@ -22,16 +24,16 @@ export default function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.phone && !isValidPhone(form.phone)) {
-      setPhoneError('Enter a valid phone number (e.g. +383 44 123 456)');
+      setPhoneError(t.validPhoneError);
       return;
     }
     setLoading(true);
     try {
       await api.post('/contact', form);
-      toast.success('Message sent successfully!');
+      toast.success(t.messageSent);
       setForm({ name: '', email: '', phone: '', subject: '', message: '' });
     } catch {
-      toast.error('Failed to send message. Please try again.');
+      toast.error(t.messageFailed);
     }
     setLoading(false);
   };
@@ -43,10 +45,10 @@ export default function ContactPage() {
     <div className="pt-24 pb-16 px-6">
       <div className="max-w-[1400px] mx-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-16">
-          <p className="text-accent text-sm tracking-[3px] uppercase font-semibold mb-3">Contact Us</p>
-          <h1 className="font-outfit font-bold text-4xl text-white mb-4">Get In Touch</h1>
+          <p className="text-accent text-sm tracking-[3px] uppercase font-semibold mb-3">{t.contactUs}</p>
+          <h1 className="font-outfit font-bold text-4xl text-white mb-4">{t.getInTouch}</h1>
           <p className="text-text-secondary max-w-xl mx-auto">
-            Have a question or need a custom quote? Reach out to us through any of the channels below.
+            {t.contactSubtitle}
           </p>
         </motion.div>
 
@@ -54,9 +56,9 @@ export default function ContactPage() {
           {/* Contact Info */}
           <div className="space-y-6">
             {[
-              { icon: MapPin, title: 'Our Office', detail: 'Rruga Adem Jashari, Drenas, Kosovo' },
-              { icon: Phone, title: 'Phone', detail: '+383 44 123 456' },
-              { icon: Mail, title: 'Email', detail: 'info@drenasrentacar.com' },
+              { icon: MapPin, title: t.ourOffice, detail: 'Rruga Adem Jashari, Drenas, Kosovo' },
+              { icon: Phone, title: t.phone, detail: '+383 44 123 456' },
+              { icon: Mail, title: t.email, detail: 'info@nexorarentacar.com' },
             ].map(item => (
               <div key={item.title} className="flex items-start gap-4 p-5 bg-bg-secondary border border-border rounded-xl">
                 <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center shrink-0">
@@ -83,7 +85,7 @@ export default function ContactPage() {
               </a>
               <a href="tel:+38344123456" className="flex-1">
                 <Button variant="secondary" size="lg" className="w-full">
-                  <Phone className="w-4 h-4 mr-2" /> Call Us
+                  <Phone className="w-4 h-4 mr-2" /> {t.callUs}
                 </Button>
               </a>
             </div>
@@ -98,18 +100,18 @@ export default function ContactPage() {
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-                title="Drenas, Kosovo - Drenas Rent a Car"
+                title="Drenas, Kosovo - Nexora Rent a Car"
               />
             </div>
           </div>
 
           {/* Contact Form */}
           <form onSubmit={handleSubmit} className="bg-bg-secondary border border-border rounded-xl p-6 space-y-5">
-            <h3 className="font-outfit font-semibold text-white text-xl mb-2">Send us a message</h3>
+            <h3 className="font-outfit font-semibold text-white text-xl mb-2">{t.sendUsMessage}</h3>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Name" value={form.name} onChange={set('name')} placeholder="Your name" />
+              <Input label={t.name} value={form.name} onChange={set('name')} placeholder={t.yourName} />
               <Input
-                label="Phone"
+                label={t.phone}
                 type="tel"
                 value={form.phone}
                 onChange={e => {
@@ -121,7 +123,7 @@ export default function ContactPage() {
                 }}
                 onBlur={() => {
                   if (form.phone && !isValidPhone(form.phone)) {
-                    setPhoneError('Enter a valid phone number (e.g. +383 44 123 456)');
+                    setPhoneError(t.validPhoneError);
                   } else {
                     setPhoneError('');
                   }
@@ -130,20 +132,20 @@ export default function ContactPage() {
                 placeholder="+383 44 123 456"
               />
             </div>
-            <Input label="Email" type="email" value={form.email} onChange={set('email')} placeholder="your@email.com" />
-            <Input label="Subject" value={form.subject} onChange={set('subject')} placeholder="Rental inquiry" />
+            <Input label={t.email} type="email" value={form.email} onChange={set('email')} placeholder="your@email.com" />
+            <Input label={t.subject} value={form.subject} onChange={set('subject')} placeholder={t.rentalInquiry} />
             <div>
-              <label className="text-text-secondary text-sm font-medium mb-2 block">Message</label>
+              <label className="text-text-secondary text-sm font-medium mb-2 block">{t.message}</label>
               <textarea
                 value={form.message}
                 onChange={set('message')}
                 rows={5}
-                placeholder="How can we help you?"
+                placeholder={t.howCanWeHelp}
                 className="w-full bg-surface border border-border rounded px-4 py-2.5 text-white text-sm placeholder:text-text-muted focus:outline-none focus:border-accent/50 resize-none"
               />
             </div>
             <Button type="submit" size="lg" className="w-full" loading={loading}>
-              <Send className="w-4 h-4 mr-2" /> Send Message
+              <Send className="w-4 h-4 mr-2" /> {t.sendMessage}
             </Button>
           </form>
         </div>

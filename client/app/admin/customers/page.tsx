@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import { formatPrice, formatDate } from '@/lib/utils';
 import DataTable from '@/components/admin/DataTable';
 import { Search, X } from 'lucide-react';
+import { useLanguageStore } from '@/stores/languageStore';
 
 const WhatsAppIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -42,6 +43,7 @@ interface CustomerDetail extends Customer {
 }
 
 export default function AdminCustomersPage() {
+  const { t } = useLanguageStore();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -75,7 +77,7 @@ export default function AdminCustomersPage() {
 
   const columns = [
     {
-      key: 'name', label: 'Name',
+      key: 'name', label: t.name,
       render: (c: Customer) => (
         <div>
           <p className="font-medium text-gray-900">{c.first_name} {c.last_name}</p>
@@ -83,7 +85,7 @@ export default function AdminCustomersPage() {
         </div>
       ),
     },
-    { key: 'phone', label: 'Phone', render: (c: Customer) => c.phone ? (
+    { key: 'phone', label: t.phone, render: (c: Customer) => c.phone ? (
       <div className="flex items-center gap-1.5">
         <span className="text-sm">{c.phone}</span>
         <a
@@ -98,17 +100,17 @@ export default function AdminCustomersPage() {
         </a>
       </div>
     ) : <span className="text-sm">—</span> },
-    { key: 'total_bookings', label: 'Bookings', render: (c: Customer) => <span className="font-semibold">{c.total_bookings}</span> },
-    { key: 'total_spent', label: 'Total Spent', render: (c: Customer) => <span className="font-semibold text-gray-900">{formatPrice(Number(c.total_spent))}</span> },
+    { key: 'total_bookings', label: t.bookings, render: (c: Customer) => <span className="font-semibold">{c.total_bookings}</span> },
+    { key: 'total_spent', label: t.totalSpent, render: (c: Customer) => <span className="font-semibold text-gray-900">{formatPrice(Number(c.total_spent))}</span> },
     {
-      key: 'last_booking', label: 'Last Booking',
+      key: 'last_booking', label: t.lastBooking,
       render: (c: Customer) => <span className="text-sm text-gray-500">{c.last_booking ? formatDate(c.last_booking) : '—'}</span>,
     },
     {
       key: 'actions', label: '',
       render: (c: Customer) => (
         <button onClick={(e) => { e.stopPropagation(); viewCustomer(c.id); }} className="text-[#FF4D30] hover:underline text-sm font-medium">
-          View
+          {t.view}
         </button>
       ),
     },
@@ -116,13 +118,13 @@ export default function AdminCustomersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 font-outfit">Customers</h1>
+      <h1 className="text-2xl font-bold text-gray-900 font-outfit">{t.customersTitle}</h1>
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           type="text"
-          placeholder="Search customers..."
+          placeholder={t.searchCustomersPlaceholder}
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FF4D30]/20 focus:border-[#FF4D30]"
@@ -133,7 +135,7 @@ export default function AdminCustomersPage() {
         columns={columns as { key: string; label: string; render?: (row: Record<string, unknown>) => React.ReactNode }[]}
         data={customers as unknown as Record<string, unknown>[]}
         loading={loading}
-        emptyMessage="No customers found"
+        emptyMessage={t.noCustomersFound}
       />
 
       {/* Customer detail modal */}
@@ -146,9 +148,9 @@ export default function AdminCustomersPage() {
             </div>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><p className="text-gray-500">Email</p><p className="font-medium">{selected.email}</p></div>
+                <div><p className="text-gray-500">{t.email}</p><p className="font-medium">{selected.email}</p></div>
                 <div>
-                  <p className="text-gray-500">Phone</p>
+                  <p className="text-gray-500">{t.phone}</p>
                   {selected.phone ? (
                     <div className="flex items-center gap-2">
                       <p className="font-medium">{selected.phone}</p>
@@ -167,11 +169,11 @@ export default function AdminCustomersPage() {
                     <p className="font-medium">—</p>
                   )}
                 </div>
-                <div><p className="text-gray-500">Member Since</p><p className="font-medium">{formatDate(selected.created_at)}</p></div>
-                <div><p className="text-gray-500">Total Spent</p><p className="font-medium text-[#FF4D30]">{formatPrice(Number(selected.total_spent))}</p></div>
+                <div><p className="text-gray-500">{t.memberSince}</p><p className="font-medium">{formatDate(selected.created_at)}</p></div>
+                <div><p className="text-gray-500">{t.totalSpent}</p><p className="font-medium text-[#FF4D30]">{formatPrice(Number(selected.total_spent))}</p></div>
               </div>
               <div className="border-t border-gray-100 pt-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Rental History</h3>
+                <h3 className="font-semibold text-gray-900 mb-3">{t.rentalHistory}</h3>
                 {selected.reservations?.length > 0 ? (
                   <div className="space-y-2">
                     {selected.reservations.map(r => (
@@ -188,7 +190,7 @@ export default function AdminCustomersPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400">No rentals yet</p>
+                  <p className="text-sm text-gray-400">{t.noRentalsYet}</p>
                 )}
               </div>
             </div>

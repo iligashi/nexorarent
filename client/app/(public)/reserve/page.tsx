@@ -11,11 +11,10 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import CarCard from '@/components/cars/CarCard';
 import { formatPrice } from '@/lib/utils';
+import { useLanguageStore } from '@/stores/languageStore';
 import type { Location, Car, Extra } from '@/types';
 
-const steps = ['Dates & Location', 'Choose Car', 'Extras', 'Your Details', 'Confirm'];
-
-function StepIndicator({ current }: { current: number }) {
+function StepIndicator({ current, steps }: { current: number; steps: string[] }) {
   return (
     <div className="flex items-center justify-center gap-2 mb-10">
       {steps.map((label, i) => (
@@ -37,6 +36,8 @@ function StepIndicator({ current }: { current: number }) {
 }
 
 export default function ReservePage() {
+  const { t } = useLanguageStore();
+  const steps = [t.datesAndLocation, t.chooseCar, t.extras, t.yourDetailsStep, t.confirmStep];
   const searchParams = useSearchParams();
   const router = useRouter();
   const store = useReservationStore();
@@ -115,7 +116,7 @@ export default function ReservePage() {
       setConfirmationNo(data.reservation.reservation_no);
       store.setStep(6);
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to create reservation');
+      alert(err.response?.data?.error || t.failedCreateReservation);
     }
     setSubmitting(false);
   };
@@ -138,16 +139,16 @@ export default function ReservePage() {
           <div className="w-20 h-20 bg-success/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <Check className="w-10 h-10 text-success" />
           </div>
-          <h1 className="font-outfit font-bold text-3xl text-white mb-2">Reservation Confirmed!</h1>
-          <p className="text-text-secondary mb-6">Your reservation number is:</p>
+          <h1 className="font-outfit font-bold text-3xl text-white mb-2">{t.reservationConfirmed}</h1>
+          <p className="text-text-secondary mb-6">{t.reservationNumberIs}</p>
           <p className="font-outfit font-bold text-2xl text-accent mb-8">{confirmationNo}</p>
           <p className="text-text-muted text-sm mb-8">
-            We&apos;ll contact you shortly to confirm the details. Check your email for the receipt.
+            {t.contactSoon}
           </p>
           <div className="flex gap-4 justify-center">
-            <Button onClick={() => { store.reset(); router.push('/'); }}>Back to Home</Button>
+            <Button onClick={() => { store.reset(); router.push('/'); }}>{t.backToHome}</Button>
             <a href={`https://wa.me/38344123456?text=Hi, my reservation number is ${confirmationNo}`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline">WhatsApp Us</Button>
+              <Button variant="outline">{t.whatsappUs}</Button>
             </a>
           </div>
         </motion.div>
@@ -158,10 +159,10 @@ export default function ReservePage() {
   return (
     <div className="pt-24 pb-16 px-6">
       <div className="max-w-3xl mx-auto">
-        <h1 className="font-outfit font-bold text-3xl text-white text-center mb-2">Reserve Your Car</h1>
-        <p className="text-text-secondary text-center mb-8">Complete the steps below to book your vehicle.</p>
+        <h1 className="font-outfit font-bold text-3xl text-white text-center mb-2">{t.reserveYourCar}</h1>
+        <p className="text-text-secondary text-center mb-8">{t.completeSteps}</p>
 
-        <StepIndicator current={store.step} />
+        <StepIndicator current={store.step} steps={steps} />
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -175,37 +176,37 @@ export default function ReservePage() {
             {/* Step 1: Dates & Location */}
             {store.step === 1 && (
               <div className="bg-bg-secondary border border-border rounded-xl p-6 space-y-6">
-                <h2 className="font-outfit font-semibold text-white text-xl">Select Dates & Location</h2>
+                <h2 className="font-outfit font-semibold text-white text-xl">{t.selectDatesLocation}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-text-muted text-xs font-medium mb-1.5 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" /> Pickup Location
+                      <MapPin className="w-3.5 h-3.5" /> {t.pickupLocation}
                     </label>
                     <select
                       value={store.pickupLocation}
                       onChange={e => store.setDates({ pickupLocation: e.target.value })}
                       className="w-full bg-surface border border-border rounded px-3 py-2.5 text-white text-sm focus:outline-none focus:border-accent/50"
                     >
-                      <option value="">Select location</option>
+                      <option value="">{t.selectLocation}</option>
                       {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-text-muted text-xs font-medium mb-1.5 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" /> Dropoff Location
+                      <MapPin className="w-3.5 h-3.5" /> {t.dropoffLocation}
                     </label>
                     <select
                       value={store.dropoffLocation}
                       onChange={e => store.setDates({ dropoffLocation: e.target.value })}
                       className="w-full bg-surface border border-border rounded px-3 py-2.5 text-white text-sm focus:outline-none focus:border-accent/50"
                     >
-                      <option value="">Select location</option>
+                      <option value="">{t.selectLocation}</option>
                       {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-text-muted text-xs font-medium mb-1.5 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" /> Pickup Date
+                      <Calendar className="w-3.5 h-3.5" /> {t.pickupDate}
                     </label>
                     <input
                       type="date"
@@ -216,7 +217,7 @@ export default function ReservePage() {
                   </div>
                   <div>
                     <label className="text-text-muted text-xs font-medium mb-1.5 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" /> Return Date
+                      <Calendar className="w-3.5 h-3.5" /> {t.returnDate}
                     </label>
                     <input
                       type="date"
@@ -227,7 +228,7 @@ export default function ReservePage() {
                   </div>
                   <div>
                     <label className="text-text-muted text-xs font-medium mb-1.5 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> Pickup Time
+                      <Clock className="w-3.5 h-3.5" /> {t.pickupTime}
                     </label>
                     <input
                       type="time"
@@ -238,7 +239,7 @@ export default function ReservePage() {
                   </div>
                   <div>
                     <label className="text-text-muted text-xs font-medium mb-1.5 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> Return Time
+                      <Clock className="w-3.5 h-3.5" /> {t.returnTime}
                     </label>
                     <input
                       type="time"
@@ -254,7 +255,7 @@ export default function ReservePage() {
             {/* Step 2: Choose Car */}
             {store.step === 2 && (
               <div className="space-y-6">
-                <h2 className="font-outfit font-semibold text-white text-xl">Choose Your Car</h2>
+                <h2 className="font-outfit font-semibold text-white text-xl">{t.chooseYourCar}</h2>
                 {loading ? (
                   <div className="flex items-center justify-center py-20">
                     <Loader2 className="w-8 h-8 text-accent animate-spin" />
@@ -280,7 +281,7 @@ export default function ReservePage() {
             {/* Step 3: Extras */}
             {store.step === 3 && (
               <div className="space-y-6">
-                <h2 className="font-outfit font-semibold text-white text-xl">Select Extras</h2>
+                <h2 className="font-outfit font-semibold text-white text-xl">{t.selectExtras}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {extras.map(ext => {
                     const isSelected = store.selectedExtras.some(e => e.extra_id === ext.id);
@@ -312,34 +313,34 @@ export default function ReservePage() {
             {/* Step 4: Personal Details */}
             {store.step === 4 && (
               <div className="bg-bg-secondary border border-border rounded-xl p-6 space-y-6">
-                <h2 className="font-outfit font-semibold text-white text-xl">Your Details</h2>
+                <h2 className="font-outfit font-semibold text-white text-xl">{t.yourDetailsStep}</h2>
                 {user ? (
                   <div className="p-4 bg-bg-tertiary rounded-lg">
                     <p className="text-white font-medium">{user.first_name} {user.last_name}</p>
                     <p className="text-text-secondary text-sm">{user.email}</p>
                     {user.phone && <p className="text-text-secondary text-sm">{user.phone}</p>}
-                    <p className="text-success text-xs mt-2">Logged in - details will be used automatically</p>
+                    <p className="text-success text-xs mt-2">{t.loggedInDetails}</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <p className="text-text-muted text-sm">
-                      <a href="/auth/login" className="text-accent hover:underline">Login</a> for a faster checkout, or continue as guest:
+                      <a href="/auth/login" className="text-accent hover:underline">{t.login}</a> {t.loginForFaster}
                     </p>
                     <Input
-                      label="Full Name"
+                      label={t.fullName}
                       value={store.guestName}
                       onChange={e => store.setGuest({ guestName: e.target.value })}
-                      placeholder="Your full name"
+                      placeholder={t.yourFullName}
                     />
                     <Input
-                      label="Email"
+                      label={t.email}
                       type="email"
                       value={store.guestEmail}
                       onChange={e => store.setGuest({ guestEmail: e.target.value })}
                       placeholder="your@email.com"
                     />
                     <Input
-                      label="Phone"
+                      label={t.phone}
                       type="tel"
                       value={store.guestPhone}
                       onChange={e => {
@@ -351,7 +352,7 @@ export default function ReservePage() {
                       }}
                       onBlur={() => {
                         if (store.guestPhone && !isValidPhone(store.guestPhone)) {
-                          setPhoneError('Enter a valid phone number (e.g. +383 44 123 456)');
+                          setPhoneError(t.validPhoneError);
                         } else {
                           setPhoneError('');
                         }
@@ -362,12 +363,12 @@ export default function ReservePage() {
                   </div>
                 )}
                 <div>
-                  <label className="text-text-muted text-xs font-medium mb-1.5 block">Notes (optional)</label>
+                  <label className="text-text-muted text-xs font-medium mb-1.5 block">{t.notesOptional}</label>
                   <textarea
                     value={store.notes}
                     onChange={e => store.setGuest({ notes: e.target.value })}
                     rows={3}
-                    placeholder="Any special requests..."
+                    placeholder={t.specialRequests}
                     className="w-full bg-surface border border-border rounded px-3 py-2.5 text-white text-sm focus:outline-none focus:border-accent/50 resize-none"
                   />
                 </div>
@@ -377,7 +378,7 @@ export default function ReservePage() {
             {/* Step 5: Review */}
             {store.step === 5 && (
               <div className="bg-bg-secondary border border-border rounded-xl p-6 space-y-6">
-                <h2 className="font-outfit font-semibold text-white text-xl">Review Your Reservation</h2>
+                <h2 className="font-outfit font-semibold text-white text-xl">{t.reviewReservation}</h2>
 
                 {selectedCar && (
                   <div className="flex gap-4 p-4 bg-bg-tertiary rounded-lg">
@@ -390,35 +391,35 @@ export default function ReservePage() {
 
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-text-secondary">Pickup</span>
-                    <span className="text-white">{store.pickupDate} at {store.pickupTime}</span>
+                    <span className="text-text-secondary">{t.pickup}</span>
+                    <span className="text-white">{store.pickupDate} {t.at} {store.pickupTime}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-text-secondary">Return</span>
-                    <span className="text-white">{store.dropoffDate} at {store.dropoffTime}</span>
+                    <span className="text-text-secondary">{t.returnLabel}</span>
+                    <span className="text-white">{store.dropoffDate} {t.at} {store.dropoffTime}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-text-secondary">Duration</span>
-                    <span className="text-white">{totalDays} day{totalDays !== 1 ? 's' : ''}</span>
+                    <span className="text-text-secondary">{t.duration}</span>
+                    <span className="text-white">{totalDays} {totalDays !== 1 ? t.days : t.day}</span>
                   </div>
                   <hr className="border-border" />
                   <div className="flex justify-between text-sm">
-                    <span className="text-text-secondary">Daily Rate</span>
+                    <span className="text-text-secondary">{t.dailyRate}</span>
                     <span className="text-white">{selectedCar ? formatPrice(Number(selectedCar.price_per_day)) : '-'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-text-secondary">Base ({totalDays} days)</span>
+                    <span className="text-text-secondary">{t.baseDays} ({totalDays} {t.days})</span>
                     <span className="text-white">{formatPrice(basePrice)}</span>
                   </div>
                   {store.selectedExtras.length > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-text-secondary">Extras</span>
+                      <span className="text-text-secondary">{t.extras}</span>
                       <span className="text-white">{formatPrice(extrasPrice)}</span>
                     </div>
                   )}
                   <hr className="border-border" />
                   <div className="flex justify-between text-lg font-bold">
-                    <span className="text-white">Total</span>
+                    <span className="text-white">{t.total}</span>
                     <span className="text-accent">{formatPrice(totalPrice)}</span>
                   </div>
                 </div>
@@ -434,7 +435,7 @@ export default function ReservePage() {
             onClick={() => store.setStep(Math.max(1, store.step - 1))}
             disabled={store.step === 1}
           >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+            <ArrowLeft className="w-4 h-4 mr-2" /> {t.back}
           </Button>
 
           {store.step < 5 ? (
@@ -442,7 +443,7 @@ export default function ReservePage() {
               onClick={() => store.setStep(store.step + 1)}
               disabled={!canProceed()}
             >
-              Next <ArrowRight className="w-4 h-4 ml-2" />
+              {t.next} <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           ) : (
             <Button
@@ -450,7 +451,7 @@ export default function ReservePage() {
               loading={submitting}
               disabled={!canProceed()}
             >
-              Confirm Reservation
+              {t.confirmReservation}
             </Button>
           )}
         </div>

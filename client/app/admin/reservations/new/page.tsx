@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { formatPrice } from '@/lib/utils';
+import { useLanguageStore } from '@/stores/languageStore';
 import type { Car, Location, Extra } from '@/types';
 
 interface SelectedExtra {
@@ -19,6 +20,7 @@ function isValidPhone(phone: string): boolean {
 
 export default function AdminNewReservationPage() {
   const router = useRouter();
+  const { t } = useLanguageStore();
   const [cars, setCars] = useState<Car[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [extras, setExtras] = useState<Extra[]>([]);
@@ -79,12 +81,12 @@ export default function AdminNewReservationPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.car_id || !form.pickup_location || !form.dropoff_location || !form.pickup_date || !form.dropoff_date || !form.customer_name) {
-      setError('Please fill in all required fields');
+      setError(t.fillRequiredFields);
       return;
     }
     if (form.customer_phone && !isValidPhone(form.customer_phone)) {
       setPhoneError('Enter a valid phone number (e.g. +383 44 123 456)');
-      setError('Please fix the phone number');
+      setError(t.fixPhoneNumber);
       return;
     }
     setLoading(true);
@@ -127,7 +129,7 @@ export default function AdminNewReservationPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 font-outfit">New Reservation</h1>
+        <h1 className="text-2xl font-bold text-gray-900 font-outfit">{t.newReservationTitle}</h1>
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
@@ -135,18 +137,18 @@ export default function AdminNewReservationPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Customer Details */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Customer Details</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t.customerDetails}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className={labelClass}>Full Name *</label>
+              <label className={labelClass}>{t.fullName} *</label>
               <input className={inputClass} value={form.customer_name} onChange={e => update('customer_name', e.target.value)} placeholder="John Doe" required />
             </div>
             <div>
-              <label className={labelClass}>Email</label>
+              <label className={labelClass}>{t.email}</label>
               <input type="email" className={inputClass} value={form.customer_email} onChange={e => update('customer_email', e.target.value)} placeholder="john@example.com" />
             </div>
             <div>
-              <label className={labelClass}>Phone</label>
+              <label className={labelClass}>{t.phone}</label>
               <input
                 type="tel"
                 className={`${inputClass} ${phoneError ? 'border-red-400 focus:ring-red-200 focus:border-red-400' : ''}`}
@@ -174,9 +176,9 @@ export default function AdminNewReservationPage() {
 
         {/* Car Selection */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Vehicle *</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t.vehicleLabel} *</h2>
           <select className={inputClass} value={form.car_id} onChange={e => update('car_id', e.target.value)} required>
-            <option value="">Select a car</option>
+            <option value="">{t.selectCarLabel}</option>
             {cars.map(car => (
               <option key={car.id} value={car.id}>
                 {car.brand} {car.model} ({car.year}) - {formatPrice(Number(car.price_per_day))}/day
@@ -187,36 +189,36 @@ export default function AdminNewReservationPage() {
 
         {/* Dates & Locations */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Dates & Locations</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t.datesLocations}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Pickup Location *</label>
+              <label className={labelClass}>{t.pickupLocation} *</label>
               <select className={inputClass} value={form.pickup_location} onChange={e => update('pickup_location', e.target.value)} required>
-                <option value="">Select location</option>
+                <option value="">{t.selectLocation}</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelClass}>Dropoff Location *</label>
+              <label className={labelClass}>{t.dropoffLocation} *</label>
               <select className={inputClass} value={form.dropoff_location} onChange={e => update('dropoff_location', e.target.value)} required>
-                <option value="">Select location</option>
+                <option value="">{t.selectLocation}</option>
                 {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
             <div>
-              <label className={labelClass}>Pickup Date *</label>
+              <label className={labelClass}>{t.pickupDate} *</label>
               <input type="date" className={inputClass} value={form.pickup_date} onChange={e => update('pickup_date', e.target.value)} required />
             </div>
             <div>
-              <label className={labelClass}>Return Date *</label>
+              <label className={labelClass}>{t.returnDate}</label>
               <input type="date" className={inputClass} value={form.dropoff_date} onChange={e => update('dropoff_date', e.target.value)} required />
             </div>
             <div>
-              <label className={labelClass}>Pickup Time</label>
+              <label className={labelClass}>{t.pickupTime}</label>
               <input type="time" className={inputClass} value={form.pickup_time} onChange={e => update('pickup_time', e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>Return Time</label>
+              <label className={labelClass}>{t.returnTime}</label>
               <input type="time" className={inputClass} value={form.dropoff_time} onChange={e => update('dropoff_time', e.target.value)} />
             </div>
           </div>
@@ -224,7 +226,7 @@ export default function AdminNewReservationPage() {
 
         {/* Extras */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Extras</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t.extras}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {extras.map(ext => {
               const isSelected = selectedExtras.some(e => e.extra_id === ext.id);
@@ -255,23 +257,23 @@ export default function AdminNewReservationPage() {
 
         {/* Notes & Status */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Notes & Status</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t.notesStatus}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Customer Notes</label>
+              <label className={labelClass}>{t.customerNotes}</label>
               <textarea rows={3} className={inputClass + ' resize-none'} value={form.notes} onChange={e => update('notes', e.target.value)} placeholder="Any special requests..." />
             </div>
             <div>
-              <label className={labelClass}>Admin Notes</label>
-              <textarea rows={3} className={inputClass + ' resize-none'} value={form.admin_notes} onChange={e => update('admin_notes', e.target.value)} placeholder="Internal notes..." />
+              <label className={labelClass}>{t.adminNotesLabel}</label>
+              <textarea rows={3} className={inputClass + ' resize-none'} value={form.admin_notes} onChange={e => update('admin_notes', e.target.value)} placeholder={t.internalNotes} />
             </div>
           </div>
           <div className="mt-4 max-w-xs">
-            <label className={labelClass}>Initial Status</label>
+            <label className={labelClass}>{t.initialStatus}</label>
             <select className={inputClass} value={form.status} onChange={e => update('status', e.target.value)}>
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="active">Active</option>
+              <option value="pending">{t.pending}</option>
+              <option value="confirmed">{t.confirmed}</option>
+              <option value="active">{t.active}</option>
             </select>
           </div>
         </div>
@@ -279,7 +281,7 @@ export default function AdminNewReservationPage() {
         {/* Price Summary */}
         {selectedCar && totalDays > 0 && (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Price Summary</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t.priceSummary}</h2>
             <div className="space-y-2 max-w-sm">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">{selectedCar.brand} {selectedCar.model} x {totalDays} day{totalDays > 1 ? 's' : ''}</span>
@@ -287,12 +289,12 @@ export default function AdminNewReservationPage() {
               </div>
               {selectedExtras.length > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Extras</span>
+                  <span className="text-gray-500">{t.extras}</span>
                   <span className="text-gray-900">{formatPrice(extrasPrice)}</span>
                 </div>
               )}
               <div className="border-t border-gray-100 pt-2 mt-2 flex justify-between text-lg font-bold">
-                <span className="text-gray-900">Total</span>
+                <span className="text-gray-900">{t.total}</span>
                 <span className="text-[#FF4D30]">{formatPrice(totalPrice)}</span>
               </div>
             </div>
@@ -301,13 +303,13 @@ export default function AdminNewReservationPage() {
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-3">
-          <a href="/admin/reservations" className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors">Cancel</a>
+          <a href="/admin/reservations" className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors">{t.cancel}</a>
           <button
             type="submit"
             disabled={loading}
             className="px-6 py-2.5 bg-[#FF4D30] text-white text-sm font-semibold rounded-lg hover:bg-[#E6442B] transition-colors disabled:opacity-50"
           >
-            {loading ? 'Creating...' : 'Create Reservation & Generate Invoice'}
+            {loading ? t.creating : t.createReservationInvoice}
           </button>
         </div>
       </form>

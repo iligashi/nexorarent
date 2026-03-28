@@ -7,8 +7,10 @@ import { Mail, Lock, User, Phone } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { useLanguageStore } from '@/stores/languageStore';
 
 export default function RegisterPage() {
+  const { t } = useLanguageStore();
   const router = useRouter();
   const { register } = useAuthStore();
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', phone: '', password: '', confirmPassword: '' });
@@ -18,8 +20,8 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (form.password !== form.confirmPassword) return setError('Passwords do not match');
-    if (form.password.length < 6) return setError('Password must be at least 6 characters');
+    if (form.password !== form.confirmPassword) return setError(t.passwordsNoMatch);
+    if (form.password.length < 6) return setError(t.passwordMinLength);
     setLoading(true);
     try {
       await register({ email: form.email, password: form.password, first_name: form.first_name, last_name: form.last_name, phone: form.phone || undefined });
@@ -37,24 +39,24 @@ export default function RegisterPage() {
     <div className="pt-24 pb-16 px-6 min-h-screen flex items-center justify-center">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="font-outfit font-bold text-3xl text-white mb-2">Create Account</h1>
-          <p className="text-text-secondary">Join us for a better booking experience</p>
+          <h1 className="font-outfit font-bold text-3xl text-white mb-2">{t.createAccount}</h1>
+          <p className="text-text-secondary">{t.registerSubtitle}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-bg-secondary border border-border rounded-xl p-6 space-y-4">
           {error && <p className="text-error text-sm bg-error/10 px-4 py-2 rounded">{error}</p>}
           <div className="grid grid-cols-2 gap-4">
-            <Input label="First Name" icon={User} value={form.first_name} onChange={set('first_name')} placeholder="John" />
-            <Input label="Last Name" icon={User} value={form.last_name} onChange={set('last_name')} placeholder="Doe" />
+            <Input label={t.firstName} icon={User} value={form.first_name} onChange={set('first_name')} placeholder="John" />
+            <Input label={t.lastName} icon={User} value={form.last_name} onChange={set('last_name')} placeholder="Doe" />
           </div>
-          <Input label="Email" type="email" icon={Mail} value={form.email} onChange={set('email')} placeholder="your@email.com" />
-          <Input label="Phone" icon={Phone} value={form.phone} onChange={set('phone')} placeholder="+383 44 ..." />
-          <Input label="Password" type="password" icon={Lock} value={form.password} onChange={set('password')} placeholder="Min 6 characters" />
-          <Input label="Confirm Password" type="password" icon={Lock} value={form.confirmPassword} onChange={set('confirmPassword')} placeholder="Repeat password" />
-          <Button type="submit" size="lg" className="w-full" loading={loading}>Create Account</Button>
+          <Input label={t.email} type="email" icon={Mail} value={form.email} onChange={set('email')} placeholder="your@email.com" />
+          <Input label={t.phone} icon={Phone} value={form.phone} onChange={set('phone')} placeholder="+383 44 ..." />
+          <Input label={t.password} type="password" icon={Lock} value={form.password} onChange={set('password')} placeholder={t.minCharacters} />
+          <Input label={t.confirmPassword} type="password" icon={Lock} value={form.confirmPassword} onChange={set('confirmPassword')} placeholder={t.repeatPassword} />
+          <Button type="submit" size="lg" className="w-full" loading={loading}>{t.createAccount}</Button>
           <p className="text-text-muted text-sm text-center">
-            Already have an account?{' '}
-            <Link href="/auth/login" className="text-accent hover:underline">Sign In</Link>
+            {t.alreadyHaveAccount}{' '}
+            <Link href="/auth/login" className="text-accent hover:underline">{t.signIn}</Link>
           </p>
         </form>
       </div>

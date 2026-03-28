@@ -7,23 +7,33 @@ import { useAuthStore } from '@/stores/authStore';
 import {
   LayoutDashboard, Car, CalendarDays, Users, TrendingUp,
   FileText, Mail, Settings, ChevronLeft, ChevronRight,
-  Bell, Search, LogOut, Menu, X
+  Bell, LogOut, Menu, Star, Wrench, DollarSign, Award,
+  MessageSquare, Truck, Gauge
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLanguageStore } from '@/stores/languageStore';
 
-const navItems = [
-  { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/admin/cars', icon: Car, label: 'Cars' },
-  { href: '/admin/reservations', icon: CalendarDays, label: 'Reservations' },
-  { href: '/admin/customers', icon: Users, label: 'Customers' },
-  { href: '/admin/revenue', icon: TrendingUp, label: 'Revenue' },
-  { href: '/admin/blog', icon: FileText, label: 'Blog' },
-  { href: '/admin/messages', icon: Mail, label: 'Messages' },
-  { href: '/admin/settings', icon: Settings, label: 'Settings' },
+const navItemDefs = [
+  { href: '/admin', icon: LayoutDashboard, labelKey: 'adminDashboardLabel' as const },
+  { href: '/admin/cars', icon: Car, labelKey: 'adminCarsLabel' as const },
+  { href: '/admin/reservations', icon: CalendarDays, labelKey: 'adminReservationsLabel' as const },
+  { href: '/admin/customers', icon: Users, labelKey: 'adminCustomersLabel' as const },
+  { href: '/admin/revenue', icon: TrendingUp, labelKey: 'adminRevenueLabel' as const },
+  { href: '/admin/reviews', icon: Star, labelKey: 'adminReviewsLabel' as const },
+  { href: '/admin/expenses', icon: DollarSign, labelKey: 'adminExpensesLabel' as const },
+  { href: '/admin/maintenance', icon: Wrench, labelKey: 'adminMaintenanceLabel' as const },
+  { href: '/admin/pricing', icon: Gauge, labelKey: 'adminPricingLabel' as const },
+  { href: '/admin/loyalty', icon: Award, labelKey: 'adminLoyaltyLabel' as const },
+  { href: '/admin/notifications', icon: MessageSquare, labelKey: 'adminNotificationsLabel' as const },
+  { href: '/admin/deliveries', icon: Truck, labelKey: 'adminDeliveriesLabel' as const },
+  { href: '/admin/blog', icon: FileText, labelKey: 'adminBlogLabel' as const },
+  { href: '/admin/messages', icon: Mail, labelKey: 'adminMessagesLabel' as const },
+  { href: '/admin/settings', icon: Settings, labelKey: 'adminSettingsLabel' as const },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, fetchUser, logout } = useAuthStore();
+  const { t } = useLanguageStore();
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -76,17 +86,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="h-16 flex items-center px-5 border-b border-gray-100">
           {!collapsed && (
             <Link href="/admin" className="font-outfit font-bold text-xl text-gray-900">
-              Drenas<span className="text-[#FF4D30]">Admin</span>
+              Nexora<span className="text-[#FF4D30]">Admin</span>
             </Link>
           )}
           {collapsed && (
-            <Link href="/admin" className="font-outfit font-bold text-xl text-[#FF4D30] mx-auto">D</Link>
+            <Link href="/admin" className="font-outfit font-bold text-xl text-[#FF4D30] mx-auto">N</Link>
           )}
         </div>
 
         {/* Nav items */}
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-          {navItems.map(item => (
+          {navItemDefs.map(item => (
             <Link
               key={item.href}
               href={item.href}
@@ -99,7 +109,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span>{t[item.labelKey]}</span>}
             </Link>
           ))}
         </nav>
@@ -110,7 +120,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             onClick={() => setCollapsed(!collapsed)}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 transition-colors"
           >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <><ChevronLeft className="w-4 h-4" /><span>Collapse</span></>}
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <><ChevronLeft className="w-4 h-4" /><span>{t.collapse}</span></>}
           </button>
         </div>
       </aside>
@@ -149,7 +159,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <p className="text-sm font-medium text-gray-900">{user.first_name} {user.last_name}</p>
                 <p className="text-xs text-gray-500 capitalize">{user.role}</p>
               </div>
-              <button onClick={() => { logout(); router.push('/auth/login'); }} className="p-2 text-gray-400 hover:text-red-500 transition-colors" title="Logout">
+              <button onClick={() => { logout(); router.push('/auth/login'); }} className="p-2 text-gray-400 hover:text-red-500 transition-colors" title={t.logout}>
                 <LogOut className="w-4 h-4" />
               </button>
             </div>

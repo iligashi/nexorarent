@@ -7,18 +7,15 @@ import { SlidersHorizontal, Grid3X3, List, X } from 'lucide-react';
 import api from '@/lib/api';
 import CarCard from '@/components/cars/CarCard';
 import Button from '@/components/ui/Button';
+import { useLanguageStore } from '@/stores/languageStore';
 import type { Car } from '@/types';
 
 const categories = ['economy', 'compact', 'sedan', 'suv', 'luxury', 'van', 'sports'];
 const fuels = ['petrol', 'diesel', 'hybrid', 'electric'];
 const transmissions = ['manual', 'automatic'];
-const sortOptions = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'price_asc', label: 'Price: Low to High' },
-  { value: 'price_desc', label: 'Price: High to Low' },
-];
 
 export default function CarsPage() {
+  const { t } = useLanguageStore();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [cars, setCars] = useState<Car[]>([]);
@@ -70,28 +67,34 @@ export default function CarsPage() {
 
   const totalPages = Math.ceil(total / 12);
 
+  const sortOptions = [
+    { value: 'newest', label: t.newest },
+    { value: 'price_asc', label: t.priceLowHigh },
+    { value: 'price_desc', label: t.priceHighLow },
+  ];
+
   const FilterSidebar = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-outfit font-semibold text-white">Filters</h3>
-        <button onClick={clearFilters} className="text-accent text-xs hover:underline">Clear All</button>
+        <h3 className="font-outfit font-semibold text-white">{t.filters}</h3>
+        <button onClick={clearFilters} className="text-accent text-xs hover:underline">{t.clearAll}</button>
       </div>
 
       {/* Search */}
       <div>
-        <label className="text-text-muted text-xs font-medium mb-2 block">Search</label>
+        <label className="text-text-muted text-xs font-medium mb-2 block">{t.search}</label>
         <input
           type="text"
           value={filters.search}
           onChange={(e) => updateFilter('search', e.target.value)}
-          placeholder="Brand or model..."
+          placeholder={t.brandOrModel}
           className="w-full bg-surface border border-border rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent/50"
         />
       </div>
 
       {/* Category */}
       <div>
-        <label className="text-text-muted text-xs font-medium mb-2 block">Category</label>
+        <label className="text-text-muted text-xs font-medium mb-2 block">{t.category}</label>
         <div className="space-y-2">
           {categories.map(cat => (
             <label key={cat} className="flex items-center gap-2 cursor-pointer">
@@ -110,7 +113,7 @@ export default function CarsPage() {
 
       {/* Fuel */}
       <div>
-        <label className="text-text-muted text-xs font-medium mb-2 block">Fuel Type</label>
+        <label className="text-text-muted text-xs font-medium mb-2 block">{t.fuelType}</label>
         <div className="space-y-2">
           {fuels.map(f => (
             <label key={f} className="flex items-center gap-2 cursor-pointer">
@@ -129,18 +132,18 @@ export default function CarsPage() {
 
       {/* Transmission */}
       <div>
-        <label className="text-text-muted text-xs font-medium mb-2 block">Transmission</label>
+        <label className="text-text-muted text-xs font-medium mb-2 block">{t.transmission}</label>
         <div className="space-y-2">
-          {transmissions.map(t => (
-            <label key={t} className="flex items-center gap-2 cursor-pointer">
+          {transmissions.map(tr => (
+            <label key={tr} className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
                 name="transmission"
-                checked={filters.transmission === t}
-                onChange={() => updateFilter('transmission', filters.transmission === t ? '' : t)}
+                checked={filters.transmission === tr}
+                onChange={() => updateFilter('transmission', filters.transmission === tr ? '' : tr)}
                 className="accent-accent"
               />
-              <span className="text-text-secondary text-sm capitalize">{t}</span>
+              <span className="text-text-secondary text-sm capitalize">{tr}</span>
             </label>
           ))}
         </div>
@@ -148,20 +151,20 @@ export default function CarsPage() {
 
       {/* Price Range */}
       <div>
-        <label className="text-text-muted text-xs font-medium mb-2 block">Price Range (EUR/day)</label>
+        <label className="text-text-muted text-xs font-medium mb-2 block">{t.priceRange}</label>
         <div className="flex gap-2">
           <input
             type="number"
             value={filters.price_min}
             onChange={(e) => updateFilter('price_min', e.target.value)}
-            placeholder="Min"
+            placeholder={t.min}
             className="w-1/2 bg-surface border border-border rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent/50"
           />
           <input
             type="number"
             value={filters.price_max}
             onChange={(e) => updateFilter('price_max', e.target.value)}
-            placeholder="Max"
+            placeholder={t.max}
             className="w-1/2 bg-surface border border-border rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-accent/50"
           />
         </div>
@@ -174,11 +177,11 @@ export default function CarsPage() {
       <div className="max-w-[1400px] mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <p className="text-accent text-sm font-semibold tracking-[3px] uppercase mb-2">Our Fleet</p>
+          <p className="text-accent text-sm font-semibold tracking-[3px] uppercase mb-2">{t.ourFleet}</p>
           <h1 className="font-outfit font-bold text-3xl md:text-4xl text-white">
-            Browse Our Cars
+            {t.browseOurCars}
           </h1>
-          <p className="text-text-secondary mt-2">{total} vehicles available</p>
+          <p className="text-text-secondary mt-2">{total} {t.vehicles.toLowerCase()}</p>
         </div>
 
         <div className="flex gap-8">
@@ -197,7 +200,7 @@ export default function CarsPage() {
                 onClick={() => setShowFilters(true)}
                 className="lg:hidden flex items-center gap-2 text-text-secondary text-sm border border-border px-3 py-2 rounded"
               >
-                <SlidersHorizontal className="w-4 h-4" /> Filters
+                <SlidersHorizontal className="w-4 h-4" /> {t.filters}
               </button>
               <div className="flex items-center gap-3">
                 <select
@@ -228,8 +231,8 @@ export default function CarsPage() {
               </div>
             ) : cars.length === 0 ? (
               <div className="text-center py-20">
-                <p className="text-text-muted text-lg mb-4">No cars found matching your criteria.</p>
-                <Button variant="outline" onClick={clearFilters}>Clear Filters</Button>
+                <p className="text-text-muted text-lg mb-4">{t.noCarsFound}</p>
+                <Button variant="outline" onClick={clearFilters}>{t.clearFilters}</Button>
               </div>
             ) : (
               <motion.div
@@ -276,7 +279,7 @@ export default function CarsPage() {
             <div className="absolute inset-0 bg-black/60" onClick={() => setShowFilters(false)} />
             <div className="absolute right-0 top-0 bottom-0 w-80 bg-bg-primary p-6 overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="font-outfit font-semibold text-white text-lg">Filters</h3>
+                <h3 className="font-outfit font-semibold text-white text-lg">{t.filters}</h3>
                 <button onClick={() => setShowFilters(false)}><X className="w-5 h-5 text-text-muted" /></button>
               </div>
               <FilterSidebar />

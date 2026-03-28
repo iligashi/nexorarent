@@ -11,9 +11,11 @@ import api from '@/lib/api';
 import Button from '@/components/ui/Button';
 import CarCard from '@/components/cars/CarCard';
 import { formatPrice, formatDate } from '@/lib/utils';
+import { useLanguageStore } from '@/stores/languageStore';
 import type { Car } from '@/types';
 
 export default function CarDetailPage() {
+  const { t } = useLanguageStore();
   const { slug } = useParams<{ slug: string }>();
   const [car, setCar] = useState<Car | null>(null);
   const [similarCars, setSimilarCars] = useState<Car[]>([]);
@@ -52,8 +54,8 @@ export default function CarDetailPage() {
   if (!car) {
     return (
       <div className="pt-24 pb-16 px-6 text-center">
-        <p className="text-text-muted text-lg">Car not found</p>
-        <Link href="/cars" className="text-accent mt-4 inline-block">Back to Fleet</Link>
+        <p className="text-text-muted text-lg">{t.carNotFound}</p>
+        <Link href="/cars" className="text-accent mt-4 inline-block">{t.backToFleet}</Link>
       </div>
     );
   }
@@ -82,7 +84,7 @@ export default function CarDetailPage() {
       <div className="max-w-[1400px] mx-auto">
         {/* Back link */}
         <Link href="/cars" className="inline-flex items-center gap-2 text-text-secondary hover:text-accent text-sm mb-6">
-          <ArrowLeft className="w-4 h-4" /> Back to Fleet
+          <ArrowLeft className="w-4 h-4" /> {t.backToFleet}
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -134,7 +136,7 @@ export default function CarDetailPage() {
                 <div className="flex items-center gap-1">
                   <Star className="w-5 h-5 text-gold fill-gold" />
                   <span className="text-white font-semibold">{Number(car.avg_rating).toFixed(1)}</span>
-                  <span className="text-text-muted text-sm">({car.review_count} reviews)</span>
+                  <span className="text-text-muted text-sm">({car.review_count} {t.reviews})</span>
                 </div>
               </div>
 
@@ -159,7 +161,7 @@ export default function CarDetailPage() {
             {/* Features */}
             {car.features && car.features.length > 0 && (
               <div>
-                <h3 className="font-outfit font-semibold text-white text-lg mb-4">Features</h3>
+                <h3 className="font-outfit font-semibold text-white text-lg mb-4">{t.features}</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {car.features.map(f => (
                     <div key={f} className="flex items-center gap-2 text-text-secondary text-sm">
@@ -174,7 +176,7 @@ export default function CarDetailPage() {
             {car.reviews && car.reviews.length > 0 && (
               <div>
                 <h3 className="font-outfit font-semibold text-white text-lg mb-4">
-                  Customer Reviews ({car.review_count})
+                  {t.customerReviews} ({car.review_count})
                 </h3>
                 <div className="space-y-4">
                   {car.reviews.map(r => (
@@ -200,32 +202,32 @@ export default function CarDetailPage() {
           <div className="lg:col-span-1">
             <div className="sticky top-28 bg-bg-secondary border border-border rounded-xl p-6 space-y-6">
               <div>
-                <span className="text-text-muted text-sm">Price per day</span>
+                <span className="text-text-muted text-sm">{t.pricePerDay}</span>
                 <p className="font-outfit font-bold text-3xl text-accent">
                   {formatPrice(Number(car.price_per_day))}
-                  <span className="text-text-muted text-sm font-normal">/day</span>
+                  <span className="text-text-muted text-sm font-normal">{t.dayShort}</span>
                 </p>
                 {car.price_per_week && (
                   <p className="text-text-muted text-sm">
-                    Weekly: {formatPrice(Number(car.price_per_week))}
+                    {t.weekly} {formatPrice(Number(car.price_per_week))}
                   </p>
                 )}
               </div>
 
               {car.deposit > 0 && (
                 <p className="text-text-muted text-sm">
-                  Deposit: {formatPrice(Number(car.deposit))}
+                  {t.deposit} {formatPrice(Number(car.deposit))}
                 </p>
               )}
 
               <Link href={`/reserve?car=${car.id}`}>
                 <Button size="lg" className="w-full mt-4">
-                  <Calendar className="w-4 h-4 mr-2" /> Reserve This Car
+                  <Calendar className="w-4 h-4 mr-2" /> {t.reserveThisCar}
                 </Button>
               </Link>
 
               <a
-                href={`https://wa.me/38344123456?text=Hi, I'm interested in renting the ${car.brand} ${car.model}`}
+                href={`https://wa.me/38344123456?text=${t.interestedInRenting} ${car.brand} ${car.model}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -240,7 +242,7 @@ export default function CarDetailPage() {
         {/* Similar Cars */}
         {similarCars.length > 0 && (
           <div className="mt-20">
-            <h3 className="font-outfit font-semibold text-white text-2xl mb-6">Similar Cars</h3>
+            <h3 className="font-outfit font-semibold text-white text-2xl mb-6">{t.similarCars}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {similarCars.map(c => <CarCard key={c.id} car={c} />)}
             </div>

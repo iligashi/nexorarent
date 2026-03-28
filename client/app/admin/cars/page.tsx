@@ -8,8 +8,10 @@ import DataTable from '@/components/admin/DataTable';
 import AdminBadge from '@/components/admin/AdminBadge';
 import { Plus, Search } from 'lucide-react';
 import type { Car } from '@/types';
+import { useLanguageStore } from '@/stores/languageStore';
 
 export default function AdminCarsPage() {
+  const { t } = useLanguageStore();
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -43,19 +45,19 @@ export default function AdminCarsPage() {
 
   const columns = [
     {
-      key: 'image', label: 'Image', className: 'w-16',
+      key: 'image', label: t.image, className: 'w-16',
       render: (car: Car) => (
         <div className="w-14 h-10 rounded bg-gray-100 overflow-hidden">
           {car.image ? (
             <img src={car.image.startsWith('http') ? car.image : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '')}${car.image}`} alt={`${car.brand} ${car.model}`} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No img</div>
+            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">{t.noImg}</div>
           )}
         </div>
       ),
     },
     {
-      key: 'name', label: 'Brand / Model',
+      key: 'name', label: t.brandModel,
       render: (car: Car) => (
         <div>
           <p className="font-medium text-gray-900">{car.brand} {car.model}</p>
@@ -64,15 +66,15 @@ export default function AdminCarsPage() {
       ),
     },
     {
-      key: 'category', label: 'Category',
+      key: 'category', label: t.category,
       render: (car: Car) => <span className="capitalize text-sm">{car.category}</span>,
     },
     {
-      key: 'price_per_day', label: 'Price/Day',
+      key: 'price_per_day', label: t.priceDay,
       render: (car: Car) => <span className="font-semibold text-gray-900">{formatPrice(car.price_per_day)}</span>,
     },
     {
-      key: 'status', label: 'Status',
+      key: 'status', label: t.status,
       render: (car: Car) => (
         <button onClick={(e) => { e.stopPropagation(); toggleAvailability(car.id); }}>
           <AdminBadge status={car.is_available ? 'active' : 'cancelled'} className="cursor-pointer" />
@@ -80,10 +82,10 @@ export default function AdminCarsPage() {
       ),
     },
     {
-      key: 'actions', label: 'Actions',
+      key: 'actions', label: t.actions,
       render: (car: Car) => (
         <Link href={`/admin/cars/${car.id}/edit`} onClick={e => e.stopPropagation()} className="text-[#FF4D30] hover:underline text-sm font-medium">
-          Edit
+          {t.edit}
         </Link>
       ),
     },
@@ -94,9 +96,9 @@ export default function AdminCarsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900 font-outfit">Cars</h1>
+        <h1 className="text-2xl font-bold text-gray-900 font-outfit">{t.adminCarsLabel}</h1>
         <Link href="/admin/cars/new" className="inline-flex items-center gap-2 bg-[#FF4D30] text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#E6442B] transition-colors">
-          <Plus className="w-4 h-4" /> Add New Car
+          <Plus className="w-4 h-4" /> {t.addNewCar}
         </Link>
       </div>
 
@@ -105,7 +107,7 @@ export default function AdminCarsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search cars..."
+            placeholder={t.searchCarsPlaceholder}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FF4D30]/20 focus:border-[#FF4D30]"
@@ -116,12 +118,12 @@ export default function AdminCarsPage() {
           onChange={e => setCategoryFilter(e.target.value)}
           className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#FF4D30]/20"
         >
-          <option value="">All Categories</option>
+          <option value="">{t.allCategories}</option>
           {categories.map(c => <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
         </select>
       </div>
 
-      <DataTable columns={columns} data={cars as unknown as Record<string, unknown>[]} loading={loading} emptyMessage="No cars found" />
+      <DataTable columns={columns} data={cars as unknown as Record<string, unknown>[]} loading={loading} emptyMessage={t.noCarsFound} />
     </div>
   );
 }

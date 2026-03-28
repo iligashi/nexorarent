@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import CarForm from '@/components/admin/CarForm';
+import { useLanguageStore } from '@/stores/languageStore';
 import type { Car } from '@/types';
 
 export default function EditCarPage() {
@@ -13,6 +14,7 @@ export default function EditCarPage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
+  const { t } = useLanguageStore();
 
   useEffect(() => {
     const fetchCar = async () => {
@@ -60,7 +62,7 @@ export default function EditCarPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 font-outfit">Edit Car</h1>
+      <h1 className="text-2xl font-bold text-gray-900 font-outfit">{t.editCarTitle}</h1>
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
       {car && <CarForm car={car} onSubmit={handleSubmit} loading={loading} />}
     </div>

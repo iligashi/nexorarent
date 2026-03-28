@@ -7,9 +7,11 @@ import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { ArrowLeft, Calendar, User } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useLanguageStore } from '@/stores/languageStore';
 import type { BlogPost } from '@/types';
 
 export default function BlogDetailPage() {
+  const { t } = useLanguageStore();
   const { slug } = useParams();
   const [post, setPost] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,9 +51,9 @@ export default function BlogDetailPage() {
   if (error || !post) {
     return (
       <div className="min-h-screen pt-32 pb-20 flex flex-col items-center justify-center">
-        <h1 className="text-3xl font-outfit font-bold mb-4">Post Not Found</h1>
-        <p className="text-text-secondary mb-6">The article you&apos;re looking for doesn&apos;t exist.</p>
-        <Link href="/blog" className="text-accent hover:underline">Back to Blog</Link>
+        <h1 className="text-3xl font-outfit font-bold mb-4">{t.postNotFound}</h1>
+        <p className="text-text-secondary mb-6">{t.articleNotExist}</p>
+        <Link href="/blog" className="text-accent hover:underline">{t.backToBlog}</Link>
       </div>
     );
   }
@@ -64,7 +66,7 @@ export default function BlogDetailPage() {
         className="max-w-3xl mx-auto px-4"
       >
         <Link href="/blog" className="inline-flex items-center gap-2 text-text-secondary hover:text-white transition-colors mb-8">
-          <ArrowLeft className="w-4 h-4" /> Back to Blog
+          <ArrowLeft className="w-4 h-4" /> {t.backToBlog}
         </Link>
 
         {post.cover_image && (

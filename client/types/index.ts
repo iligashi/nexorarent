@@ -137,6 +137,161 @@ export interface ContactMessage {
   created_at: string;
 }
 
+// === EXPENSE TRACKING ===
+export interface CarExpense {
+  id: string;
+  car_id: string;
+  category: ExpenseCategory;
+  description: string | null;
+  amount: number;
+  expense_date: string;
+  vendor: string | null;
+  created_by: string | null;
+  created_at: string;
+  car_brand?: string;
+  car_model?: string;
+}
+
+export type ExpenseCategory = 'insurance' | 'repair' | 'fuel' | 'tire' | 'wash' | 'parking' | 'tax' | 'registration' | 'other';
+
+// === MAINTENANCE SCHEDULER ===
+export interface MaintenanceType {
+  id: string;
+  name: string;
+  description: string | null;
+  interval_km: number | null;
+  interval_days: number | null;
+  estimated_cost: number | null;
+  is_active: boolean;
+}
+
+export interface MaintenanceRecord {
+  id: string;
+  car_id: string;
+  maintenance_type_id: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'overdue';
+  scheduled_date: string | null;
+  completed_date: string | null;
+  mileage_at_service: number | null;
+  next_due_mileage: number | null;
+  next_due_date: string | null;
+  cost: number | null;
+  vendor: string | null;
+  notes: string | null;
+  created_at: string;
+  type_name?: string;
+  car_brand?: string;
+  car_model?: string;
+}
+
+// === DYNAMIC PRICING ===
+export interface PricingRule {
+  id: string;
+  name: string;
+  type: 'demand' | 'advance_booking' | 'duration' | 'last_minute' | 'event';
+  car_id: string | null;
+  category: string | null;
+  multiplier: number;
+  conditions: Record<string, number>;
+  priority: number;
+  is_active: boolean;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+// === LOYALTY PROGRAM ===
+export interface LoyaltyAccount {
+  id: string;
+  user_id: string;
+  points_balance: number;
+  lifetime_points: number;
+  tier: LoyaltyTier;
+  created_at: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+}
+
+export interface LoyaltyTransaction {
+  id: string;
+  account_id: string;
+  reservation_id: string | null;
+  type: 'earn' | 'redeem' | 'bonus' | 'expire' | 'adjust';
+  points: number;
+  description: string | null;
+  created_at: string;
+}
+
+export interface LoyaltyReward {
+  id: string;
+  name: string;
+  description: string | null;
+  type: 'discount_percent' | 'discount_fixed' | 'free_day' | 'upgrade' | 'free_extra';
+  value: number;
+  points_cost: number;
+  is_active: boolean;
+  min_tier: LoyaltyTier;
+}
+
+export type LoyaltyTier = 'bronze' | 'silver' | 'gold' | 'platinum';
+
+// === NOTIFICATIONS ===
+export interface NotificationTemplate {
+  id: string;
+  type: string;
+  channel: 'whatsapp' | 'email' | 'sms';
+  template_name: string;
+  template_body: string;
+  is_active: boolean;
+}
+
+export interface NotificationLog {
+  id: string;
+  reservation_id: string | null;
+  user_id: string | null;
+  type: string;
+  channel: string;
+  recipient: string;
+  status: 'pending' | 'sent' | 'delivered' | 'failed' | 'read';
+  error_message: string | null;
+  sent_at: string | null;
+  created_at: string;
+  customer_name?: string;
+  reservation_no?: string;
+}
+
+// === DELIVERY TRACKING ===
+export interface DeliveryAssignment {
+  id: string;
+  reservation_id: string;
+  driver_id: string;
+  type: 'delivery' | 'return_pickup';
+  status: 'assigned' | 'en_route' | 'arrived' | 'completed' | 'cancelled';
+  pickup_lat: number | null;
+  pickup_lng: number | null;
+  destination_lat: number | null;
+  destination_lng: number | null;
+  destination_address: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  estimated_arrival: string | null;
+  notes: string | null;
+  created_at: string;
+  driver_name?: string;
+  driver_phone?: string;
+  reservation_no?: string;
+  customer_name?: string;
+  car_name?: string;
+}
+
+export interface DriverLocation {
+  lat: number;
+  lng: number;
+  speed: number | null;
+  heading: number | null;
+  recorded_at: string;
+}
+
 export type CarCategory = 'economy' | 'compact' | 'sedan' | 'suv' | 'luxury' | 'van' | 'sports';
 export type FuelType = 'petrol' | 'diesel' | 'hybrid' | 'electric';
 export type TransmissionType = 'manual' | 'automatic';

@@ -7,9 +7,11 @@ import { motion } from 'framer-motion';
 import { Calendar, User } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { useLanguageStore } from '@/stores/languageStore';
 import type { BlogPost } from '@/types';
 
 export default function BlogPage() {
+  const { t } = useLanguageStore();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,8 +23,8 @@ export default function BlogPage() {
     <div className="pt-24 pb-16 px-6">
       <div className="max-w-[1400px] mx-auto">
         <div className="text-center mb-12">
-          <p className="text-accent text-sm tracking-[3px] uppercase font-semibold mb-3">Our Blog</p>
-          <h1 className="font-outfit font-bold text-4xl text-white">Latest News & Tips</h1>
+          <p className="text-accent text-sm tracking-[3px] uppercase font-semibold mb-3">{t.ourBlog}</p>
+          <h1 className="font-outfit font-bold text-4xl text-white">{t.latestNewsTips}</h1>
         </div>
 
         {loading ? (
@@ -40,7 +42,7 @@ export default function BlogPage() {
           </div>
         ) : posts.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-text-muted text-lg">No blog posts yet. Check back soon!</p>
+            <p className="text-text-muted text-lg">{t.noBlogPosts}</p>
           </div>
         ) : (
           <motion.div

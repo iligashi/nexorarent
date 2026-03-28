@@ -2,26 +2,23 @@
 
 import Link from 'next/link';
 import { MapPin, Phone, Mail, Globe, Camera, MessageCircle } from 'lucide-react';
+import { useLanguageStore } from '@/stores/languageStore';
+import { LogoFullLight } from '@/components/ui/Logo';
 
 export default function Footer() {
+  const { t } = useLanguageStore();
+
   return (
     <footer className="bg-bg-secondary border-t border-border">
       <div className="max-w-[1400px] mx-auto px-6 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {/* About */}
           <div>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-accent flex items-center justify-center">
-                <span className="font-outfit font-bold text-white text-sm">DR</span>
-              </div>
-              <div>
-                <p className="font-outfit font-bold text-white text-lg leading-none">DRENAS</p>
-                <p className="text-text-muted text-[10px] tracking-[3px] uppercase">Rent a Car</p>
-              </div>
+            <div className="mb-6">
+              <LogoFullLight size={44} />
             </div>
             <p className="text-text-secondary text-sm leading-relaxed">
-              Premium car rental service in Drenas, Kosovo. Luxury, SUV, and economy vehicles
-              for every occasion. Trusted since 2020.
+              {t.footerDesc}
             </p>
             <div className="flex gap-3 mt-6">
               <a href="#" className="w-9 h-9 flex items-center justify-center rounded-full bg-bg-tertiary hover:bg-accent transition-colors text-text-secondary hover:text-white">
@@ -38,14 +35,14 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-outfit font-semibold text-white mb-6">Quick Links</h4>
+            <h4 className="font-outfit font-semibold text-white mb-6">{t.quickLinks}</h4>
             <ul className="space-y-3">
               {[
-                { href: '/cars', label: 'Our Fleet' },
-                { href: '/reserve', label: 'Book Now' },
-                { href: '/about', label: 'About Us' },
-                { href: '/blog', label: 'Blog' },
-                { href: '/contact', label: 'Contact' },
+                { href: '/cars', label: t.ourFleet },
+                { href: '/reserve', label: t.bookNow },
+                { href: '/about', label: t.aboutUs },
+                { href: '/blog', label: t.blog },
+                { href: '/contact', label: t.contact },
               ].map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="text-text-secondary hover:text-accent transition-colors text-sm">
@@ -58,15 +55,22 @@ export default function Footer() {
 
           {/* Car Categories */}
           <div>
-            <h4 className="font-outfit font-semibold text-white mb-6">Vehicle Types</h4>
+            <h4 className="font-outfit font-semibold text-white mb-6">{t.vehicleTypes}</h4>
             <ul className="space-y-3">
-              {['Economy', 'Compact', 'Sedan', 'SUV', 'Luxury', 'Sports'].map((cat) => (
-                <li key={cat}>
+              {[
+                { cat: 'economy', label: t.economyCars },
+                { cat: 'compact', label: t.compactCars },
+                { cat: 'sedan', label: t.sedanCars },
+                { cat: 'suv', label: t.suvCars },
+                { cat: 'luxury', label: t.luxuryCars },
+                { cat: 'sports', label: t.sportsCars },
+              ].map((item) => (
+                <li key={item.cat}>
                   <Link
-                    href={`/cars?category=${cat.toLowerCase()}`}
+                    href={`/cars?category=${item.cat}`}
                     className="text-text-secondary hover:text-accent transition-colors text-sm"
                   >
-                    {cat} Cars
+                    {item.label}
                   </Link>
                 </li>
               ))}
@@ -75,7 +79,7 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h4 className="font-outfit font-semibold text-white mb-6">Contact Us</h4>
+            <h4 className="font-outfit font-semibold text-white mb-6">{t.contactUs}</h4>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-accent mt-1 shrink-0" />
@@ -87,11 +91,11 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-accent shrink-0" />
-                <a href="mailto:info@drenasrentacar.com" className="text-text-secondary hover:text-accent text-sm">info@drenasrentacar.com</a>
+                <a href="mailto:info@nexorarentacar.com" className="text-text-secondary hover:text-accent text-sm">info@nexorarentacar.com</a>
               </li>
             </ul>
             <div className="mt-6 p-4 bg-bg-tertiary rounded-lg">
-              <p className="text-text-muted text-xs mb-1">Working Hours</p>
+              <p className="text-text-muted text-xs mb-1">{t.workingHours}</p>
               <p className="text-text-secondary text-sm">Mon-Fri: 08:00 - 20:00</p>
               <p className="text-text-secondary text-sm">Saturday: 09:00 - 18:00</p>
               <p className="text-text-secondary text-sm">Sunday: 10:00 - 16:00</p>
@@ -103,11 +107,22 @@ export default function Footer() {
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-text-muted text-sm">
-            &copy; {new Date().getFullYear()} Drenas Rent a Car. All rights reserved.
+            &copy; {new Date().getFullYear()} Nexora Rent a Car. {t.allRightsReserved}
           </p>
-          <div className="flex gap-6">
-            <Link href="#" className="text-text-muted hover:text-text-secondary text-sm">Privacy Policy</Link>
-            <Link href="#" className="text-text-muted hover:text-text-secondary text-sm">Terms of Service</Link>
+          <div className="flex items-center gap-6">
+            <span className="text-text-muted text-sm">
+              {t.madeBy}{' '}
+              <a
+                href="https://nexoraagency.llc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:text-accent-hover transition-colors font-medium"
+              >
+                nexoraagency.llc
+              </a>
+            </span>
+            <Link href="#" className="text-text-muted hover:text-text-secondary text-sm">{t.privacyPolicy}</Link>
+            <Link href="#" className="text-text-muted hover:text-text-secondary text-sm">{t.termsOfService}</Link>
           </div>
         </div>
       </div>

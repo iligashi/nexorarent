@@ -5,9 +5,11 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Fuel, Cog, Users, Star } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
+import { useLanguageStore } from '@/stores/languageStore';
 import type { Car } from '@/types';
 
 export default function CarCard({ car }: { car: Car }) {
+  const { t } = useLanguageStore();
   const imgSrc = car.image
     ? (car.image.startsWith('http') ? car.image : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '')}${car.image}`)
     : '/placeholder-car.jpg';
@@ -36,7 +38,7 @@ export default function CarCard({ car }: { car: Car }) {
           <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-bg-primary/80 backdrop-blur px-2 py-1 rounded-full">
             <span className={`w-2 h-2 rounded-full ${car.is_available ? 'bg-success' : 'bg-error'}`} />
             <span className="text-[10px] text-text-secondary">
-              {car.is_available ? 'Available' : 'Booked'}
+              {car.is_available ? t.available : t.booked}
             </span>
           </div>
         </div>
@@ -71,7 +73,7 @@ export default function CarCard({ car }: { car: Car }) {
               <span className="text-text-muted text-xs">({car.review_count})</span>
             </div>
             <span className="text-accent text-sm font-semibold group-hover:underline">
-              View Details &rarr;
+              {t.viewDetailsArrow}
             </span>
           </div>
         </div>

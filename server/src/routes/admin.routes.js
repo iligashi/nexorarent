@@ -8,6 +8,8 @@ import { query, getConnection } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireAdmin, requireManager } from '../middleware/admin.js';
 import { upload } from '../middleware/upload.js';
+import { earnLoyaltyPoints } from './admin.loyalty.routes.js';
+import { sendNotification } from './admin.notifications.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
@@ -123,9 +125,30 @@ router.put('/reservations/:id/status', async (req, res, next) => {
       `UPDATE reservations SET status = $1, admin_notes = COALESCE($2, admin_notes) WHERE id = $3`,
       [status, admin_notes || null, req.params.id]
     );
-    const { rows } = await query('SELECT * FROM reservations WHERE id = $1', [req.params.id]);
+    const { rows } = await query(`
+      SELECT r.*, COALESCE(r.guest_phone, u.phone) AS customer_phone,
+        COALESCE(r.guest_name, CONCAT(u.first_name, ' ', u.last_name)) AS customer_name
+      FROM reservations r LEFT JOIN users u ON u.id = r.user_id WHERE r.id = $1
+    `, [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Reservation not found' });
-    res.json({ reservation: rows[0] });
+
+    const reservation = rows[0];
+
+    // Loyalty: earn points when completed
+    if (status === 'completed' && reservation.user_id) {
+      try { await earnLoyaltyPoints(reservation.user_id, reservation.id, reservation.total_price); } catch (e) { /* non-blocking */ }
+    }
+
+    // WhatsApp: send status notification
+    const phone = reservation.customer_phone;
+    if (phone) {
+      try {
+        if (status === 'confirmed') await sendNotification('booking_confirmation', phone, reservation.id, reservation.user_id);
+        else await sendNotification('status_change', phone, reservation.id, reservation.user_id, { status });
+      } catch (e) { /* non-blocking */ }
+    }
+
+    res.json({ reservation });
   } catch (err) { next(err); }
 });
 
@@ -479,8 +502,8 @@ router.put('/settings', async (req, res, next) => {
     const entries = Object.entries(req.body);
     for (const [key, value] of entries) {
       await query(
-        'INSERT INTO settings (`key`, value) VALUES ($1, $2) ON DUPLICATE KEY UPDATE value = $2',
-        [key, JSON.stringify(value)]
+        'INSERT INTO settings (`key`, value) VALUES ($1, $2) ON DUPLICATE KEY UPDATE value = $3',
+        [key, JSON.stringify(value), JSON.stringify(value)]
       );
     }
     res.json({ message: 'Settings updated' });
@@ -647,7 +670,7 @@ router.get('/reservations/:id/invoice', async (req, res, next) => {
 
     // Header
     doc.fontSize(24).font('Helvetica-Bold').fillColor(accentColor)
-      .text(settings.company_name || 'Drenas Rent a Car', 50, 50);
+      .text(settings.company_name || 'Nexora Rent a Car', 50, 50);
     doc.fontSize(9).font('Helvetica').fillColor(grayColor)
       .text(settings.company_address || 'Drenas, Kosovo', 50, 80)
       .text(`Phone: ${settings.company_phone || ''} | Email: ${settings.company_email || ''}`, 50, 93);
@@ -774,7 +797,7 @@ router.get('/reservations/:id/invoice', async (req, res, next) => {
     const footerY = 760;
     doc.moveTo(50, footerY).lineTo(545, footerY).strokeColor('#e0e0e0').lineWidth(0.5).stroke();
     doc.fontSize(8).font('Helvetica').fillColor(grayColor);
-    doc.text('Thank you for choosing ' + (settings.company_name || 'Drenas Rent a Car') + '!', 50, footerY + 10, { align: 'center' });
+    doc.text('Thank you for choosing ' + (settings.company_name || 'Nexora Rent a Car') + '!', 50, footerY + 10, { align: 'center' });
     doc.text(`${settings.company_address || 'Drenas, Kosovo'} | ${settings.company_phone || ''} | ${settings.company_email || ''}`, 50, footerY + 22, { align: 'center' });
 
     doc.end();

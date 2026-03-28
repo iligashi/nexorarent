@@ -6,9 +6,11 @@ import api from '@/lib/api';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import { formatPrice, formatDate } from '@/lib/utils';
+import { useLanguageStore } from '@/stores/languageStore';
 import type { Reservation } from '@/types';
 
 export default function MyBookingsPage() {
+  const { t } = useLanguageStore();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +22,7 @@ export default function MyBookingsPage() {
   }, []);
 
   const handleCancel = async (id: string) => {
-    if (!confirm('Are you sure you want to cancel this reservation?')) return;
+    if (!confirm(t.cancelBookingConfirm)) return;
     try {
       await api.put(`/reservations/${id}/cancel`);
       setReservations(prev => prev.map(r => r.id === id ? { ...r, status: 'cancelled' } : r));
@@ -30,7 +32,7 @@ export default function MyBookingsPage() {
   return (
     <div className="pt-24 pb-16 px-6">
       <div className="max-w-4xl mx-auto">
-        <h1 className="font-outfit font-bold text-3xl text-white mb-8">My Bookings</h1>
+        <h1 className="font-outfit font-bold text-3xl text-white mb-8">{t.myBookingsTitle}</h1>
 
         {loading ? (
           <div className="space-y-4">
@@ -41,8 +43,8 @@ export default function MyBookingsPage() {
         ) : reservations.length === 0 ? (
           <div className="text-center py-20 bg-bg-secondary border border-border rounded-xl">
             <Car className="w-12 h-12 text-text-muted mx-auto mb-4" />
-            <p className="text-text-muted text-lg">No reservations yet</p>
-            <a href="/cars" className="text-accent text-sm mt-2 inline-block hover:underline">Browse our fleet</a>
+            <p className="text-text-muted text-lg">{t.noReservationsYet}</p>
+            <a href="/cars" className="text-accent text-sm mt-2 inline-block hover:underline">{t.browseOurFleet}</a>
           </div>
         ) : (
           <div className="space-y-4">
@@ -57,14 +59,14 @@ export default function MyBookingsPage() {
                     <p className="text-white font-medium">{r.brand} {r.model}</p>
                     <div className="flex items-center gap-4 text-text-secondary text-sm mt-1">
                       <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {formatDate(r.pickup_date)} - {formatDate(r.dropoff_date)}</span>
-                      <span>{r.total_days} day{r.total_days !== 1 ? 's' : ''}</span>
+                      <span>{r.total_days} {r.total_days !== 1 ? t.days : t.day}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="font-outfit font-bold text-accent text-xl">{formatPrice(Number(r.total_price))}</span>
                     {['pending', 'confirmed'].includes(r.status) && (
                       <Button variant="ghost" size="sm" onClick={() => handleCancel(r.id)}>
-                        Cancel
+                        {t.cancel}
                       </Button>
                     )}
                   </div>
