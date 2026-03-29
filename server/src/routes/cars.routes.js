@@ -47,7 +47,7 @@ router.get('/', async (req, res, next) => {
 
     const carsQuery = `
       SELECT c.*,
-        (SELECT url FROM car_images WHERE car_id = c.id AND is_primary = true LIMIT 1) AS image,
+        (SELECT url FROM car_images WHERE car_id = c.id AND is_primary = 1 LIMIT 1) AS image,
         COALESCE(AVG(rv.rating), 0) AS avg_rating,
         COUNT(rv.id) AS review_count
       FROM cars c
@@ -80,7 +80,7 @@ router.get('/featured', async (req, res, next) => {
   try {
     const { rows } = await query(`
       SELECT c.*,
-        (SELECT url FROM car_images WHERE car_id = c.id AND is_primary = true LIMIT 1) AS image
+        (SELECT url FROM car_images WHERE car_id = c.id AND is_primary = 1 LIMIT 1) AS image
       FROM cars c
       WHERE c.is_available = true AND c.is_featured = true
       ORDER BY c.sort_order ASC

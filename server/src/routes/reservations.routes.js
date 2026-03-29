@@ -139,7 +139,7 @@ router.get('/mine', authenticate, async (req, res, next) => {
   try {
     const { rows } = await query(`
       SELECT r.*, c.brand, c.model, c.slug,
-        (SELECT url FROM car_images WHERE car_id = c.id AND is_primary = true LIMIT 1) AS car_image,
+        (SELECT url FROM car_images WHERE car_id = c.id AND is_primary = 1 LIMIT 1) AS car_image,
         pl.name AS pickup_location_name, dl.name AS dropoff_location_name
       FROM reservations r
       JOIN cars c ON c.id = r.car_id
