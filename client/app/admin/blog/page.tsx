@@ -94,7 +94,7 @@ export default function AdminBlogPage() {
       </div>
 
       <DataTable
-        columns={columns as unknown as { key: string; label: string; render?: (row: Record<string, unknown>) => React.ReactNode }[]}
+        columns={columns}
         data={posts}
         loading={loading}
         emptyMessage={t.noBlogPosts}

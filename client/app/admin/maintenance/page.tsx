@@ -602,7 +602,7 @@ export default function AdminMaintenancePage() {
           </div>
 
           <DataTable
-            columns={recordColumns as unknown as { key: string; label: string; render?: (row: Record<string, unknown>) => React.ReactNode }[]}
+            columns={recordColumns}
             data={records}
             loading={recordsLoading}
             emptyMessage="No maintenance records found"
