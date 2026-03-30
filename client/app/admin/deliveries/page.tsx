@@ -119,6 +119,7 @@ export default function AdminDeliveriesPage() {
   // Data
   const [deliveries, setDeliveries] = useState<DeliveryAssignment[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [reservations, setReservations] = useState<{ id: string; reservation_no: string; customer_name: string; car_name: string }[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -175,10 +176,14 @@ export default function AdminDeliveriesPage() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.get('/admin/deliveries/drivers');
-        setDrivers(data.drivers);
+        const [driversRes, reservationsRes] = await Promise.all([
+          api.get('/admin/deliveries/drivers'),
+          api.get('/admin/deliveries/reservations'),
+        ]);
+        setDrivers(driversRes.data.drivers);
+        setReservations(reservationsRes.data.reservations);
       } catch (err) {
-        console.error('Failed to fetch drivers:', err);
+        console.error('Failed to fetch drivers/reservations:', err);
       }
     })();
   }, []);
@@ -537,15 +542,20 @@ export default function AdminDeliveriesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t.reservationIdLabel}
                 </label>
-                <input
-                  type="text"
+                <select
                   value={createForm.reservation_id}
                   onChange={e =>
                     setCreateForm(prev => ({ ...prev, reservation_id: e.target.value }))
                   }
-                  placeholder={t.enterReservationId}
-                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FF4D30]/20 focus:border-[#FF4D30]"
-                />
+                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF4D30]/20 focus:border-[#FF4D30]"
+                >
+                  <option value="">{t.selectReservation || 'Select a reservation'}</option>
+                  {reservations.map(r => (
+                    <option key={r.id} value={r.id}>
+                      #{r.reservation_no} — {r.customer_name} ({r.car_name})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Driver */}

@@ -46,6 +46,24 @@ router.get('/drivers', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Get reservations for delivery dropdown (confirmed/active ones)
+router.get('/reservations', async (req, res, next) => {
+  try {
+    const { rows } = await query(`
+      SELECT r.id, r.reservation_no,
+        COALESCE(r.guest_name, CONCAT(u.first_name, ' ', u.last_name)) AS customer_name,
+        CONCAT(c.brand, ' ', c.model) AS car_name,
+        r.pickup_date, r.return_date
+      FROM reservations r
+      LEFT JOIN users u ON u.id = r.user_id
+      JOIN cars c ON c.id = r.car_id
+      WHERE r.status IN ('confirmed', 'active')
+      ORDER BY r.pickup_date DESC
+    `);
+    res.json({ reservations: rows });
+  } catch (err) { next(err); }
+});
+
 // Create delivery assignment
 router.post('/', async (req, res, next) => {
   try {
