@@ -3,17 +3,19 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Phone, ChevronDown, Globe } from 'lucide-react';
+import { Menu, X, Phone, ChevronDown, Globe, Star } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useLanguageStore } from '@/stores/languageStore';
 import { LogoFull } from '@/components/ui/Logo';
 import { cn } from '@/lib/utils';
+import api from '@/lib/api';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuthStore();
   const { lang, setLang, t } = useLanguageStore();
+  const [loyaltyPoints, setLoyaltyPoints] = useState<number | null>(null);
 
   const navLinks = [
     { href: '/', label: t.home },
@@ -28,6 +30,11 @@ export default function Navbar() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!user) { setLoyaltyPoints(null); return; }
+    api.get('/auth/me/loyalty').then(({ data }) => setLoyaltyPoints(data.points_balance)).catch(() => {});
+  }, [user]);
 
   const toggleLang = () => setLang(lang === 'en' ? 'sq' : 'en');
 
@@ -74,9 +81,23 @@ export default function Navbar() {
           {user ? (
             <div className="relative group">
               <button className="flex items-center gap-2 text-text-secondary hover:text-white transition-colors text-sm">
-                {user.first_name} <ChevronDown className="w-4 h-4" />
+                {user.first_name}
+                {loyaltyPoints !== null && (
+                  <span className="flex items-center gap-1 text-accent text-xs font-semibold">
+                    <Star className="w-3 h-3 fill-accent" />{loyaltyPoints}
+                  </span>
+                )}
+                <ChevronDown className="w-4 h-4" />
               </button>
               <div className="absolute right-0 top-full mt-2 w-48 bg-bg-secondary border border-border rounded-lg py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                {loyaltyPoints !== null && (
+                  <div className="px-4 py-2 border-b border-border mb-1">
+                    <div className="flex items-center gap-1.5 text-accent text-sm font-semibold">
+                      <Star className="w-3.5 h-3.5 fill-accent" />
+                      {loyaltyPoints} {lang === 'sq' ? 'pikë' : 'pts'}
+                    </div>
+                  </div>
+                )}
                 {['staff', 'manager', 'owner'].includes(user.role) && (
                   <Link href="/admin" className="block px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-bg-tertiary">
                     {t.dashboard}
@@ -157,6 +178,12 @@ export default function Navbar() {
               <hr className="border-border" />
               {user ? (
                 <>
+                  {loyaltyPoints !== null && (
+                    <div className="flex items-center gap-1.5 text-accent text-sm font-semibold py-2">
+                      <Star className="w-4 h-4 fill-accent" />
+                      {loyaltyPoints} {lang === 'sq' ? 'pikë' : 'pts'}
+                    </div>
+                  )}
                   <Link href="/my-bookings" onClick={() => setMobileOpen(false)} className="text-text-secondary py-2">{t.myBookings}</Link>
                   <button onClick={() => { logout(); setMobileOpen(false); }} className="text-text-secondary text-left py-2">{t.logout}</button>
                 </>

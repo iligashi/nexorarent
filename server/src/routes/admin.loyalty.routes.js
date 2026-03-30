@@ -122,7 +122,7 @@ router.delete('/rewards/:id', requireManager, async (req, res, next) => {
 
 // Config: tier thresholds and earn rate
 router.get('/config', async (req, res, next) => {
-  res.json({ tiers: TIER_THRESHOLDS, earn_rate: 1 });
+  res.json({ config: { points_per_euro: 1, tier_thresholds: TIER_THRESHOLDS } });
 });
 
 // === Utility: earn points when reservation completes ===

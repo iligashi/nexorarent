@@ -131,6 +131,20 @@ router.get('/me', authenticate, (req, res) => {
   res.json({ user: req.user });
 });
 
+// Get current user's loyalty points
+router.get('/me/loyalty', authenticate, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      'SELECT points_balance, tier FROM loyalty_accounts WHERE user_id = $1',
+      [req.user.id]
+    );
+    if (rows.length === 0) {
+      return res.json({ points_balance: 0, tier: 'bronze' });
+    }
+    res.json({ points_balance: rows[0].points_balance, tier: rows[0].tier });
+  } catch (err) { next(err); }
+});
+
 // Update profile
 router.put('/me', authenticate, async (req, res, next) => {
   try {
