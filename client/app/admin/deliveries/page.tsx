@@ -549,7 +549,7 @@ export default function AdminDeliveriesPage() {
                   }
                   className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FF4D30]/20 focus:border-[#FF4D30]"
                 >
-                  <option value="">{t.selectReservation || 'Select a reservation'}</option>
+                  <option value="">Select a reservation</option>
                   {reservations.map(r => (
                     <option key={r.id} value={r.id}>
                       #{r.reservation_no} — {r.customer_name} ({r.car_name})
