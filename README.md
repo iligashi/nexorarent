@@ -101,13 +101,9 @@ npm run dev
 
 The site will be running at `http://localhost:3000`.
 
-## Default Admin Account
+## Demo access
 
-After seeding the database, you can log in to the admin dashboard with:
-
-- **Email:** `admin@drenasrentacar.com`
-- **Password:** `admin123`
-- **Admin Panel:** `http://localhost:3000/admin`
+Seeded credentials are intentionally omitted from this README. Configure a unique local admin password, and rotate any default credentials before using a deployed environment.
 
 ## Project Structure
 
