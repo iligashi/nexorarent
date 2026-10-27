@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Production Readiness Audit - nexorarent</title>
+    <style>
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 40px auto;
+        max-width: 980px;
+        line-height: 1.6;
+        color: #1f2937;
+        background: #f8fafc;
+      }
+      .container {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 32px 40px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+      }
+      h1, h2, h3 {
+        color: #111827;
+        margin-top: 0;
+      }
+      h1 {
+        font-size: 30px;
+        margin-bottom: 10px;
+      }
+      h2 {
+        font-size: 22px;
+        margin-top: 28px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .meta {
+        color: #4b5563;
+        margin-bottom: 24px;
+      }
+      .score-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 14px;
+        margin: 18px 0 24px;
+      }
+      .score-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px;
+        background: #f9fafb;
+      }
+      .score-label {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 8px;
+      }
+      .score-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #111827;
+      }
+      ul, ol {
+        padding-left: 20px;
+      }
+      li {
+        margin-bottom: 8px;
+      }
+      .warning {
+        background: #fff7ed;
+        border-left: 4px solid #f59e0b;
+        padding: 12px 16px;
+        border-radius: 6px;
+      }
+      .critical {
+        background: #fef2f2;
+        border-left: 4px solid #dc2626;
+        padding: 12px 16px;
+        border-radius: 6px;
+      }
+      .ok {
+        background: #ecfdf5;
+        border-left: 4px solid #10b981;
+        padding: 12px 16px;
+        border-radius: 6px;
+      }
+      code {
+        background: #f3f4f6;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      @media print {
+        body {
+          background: white;
+          margin: 0;
+        }
+        .container {
+          box-shadow: none;
+          border: none;
+          border-radius: 0;
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Production Readiness Audit</h1>
+      <div class="meta">
+        <strong>Repository:</strong> iligashi/nexorarent<br />
+        <strong>Date:</strong> 2026-10-27
+      </div>
+
+      <div class="warning">
+        <strong>Overall verdict:</strong> This is a strong MVP / beta application. It is not fully production-ready for public launch yet, but it is close enough to be a serious private beta or pilot deployment if the critical hardening items are addressed.
+      </div>
+
+      <h2>Executive Summary</h2>
+      <p>
+        The repository has a sensible architecture: a TypeScript-heavy Next.js frontend and a Node/Express backend with MySQL support. The project is organized, modern, and clearly built as a real product rather than a toy app. It includes strong foundations such as Helmet, CORS, rate limiting, JWT-based auth, bcrypt password hashing, and structured backend routing.
+      </p>
+      <p>
+        However, production readiness is not achieved yet. The largest gaps are around authorization enforcement, testing, deployment pipeline, secret management, monitoring, and backup strategy. This app is much closer to a beta / pilot application than a hardened production system.
+      </p>
+
+      <h2>Production Scorecard</h2>
+      <div class="score-grid">
+        <div class="score-card">
+          <div class="score-label">Architecture</div>
+          <div class="score-value">8/10</div>
+        </div>
+        <div class="score-card">
+          <div class="score-label">Security</div>
+          <div class="score-value">5/10</div>
+        </div>
+        <div class="score-card">
+          <div class="score-label">Reliability</div>
+          <div class="score-value">5/10</div>
+        </div>
+        <div class="score-card">
+          <div class="score-label">Testing</div>
+          <div class="score-value">2/10</div>
+        </div>
+        <div class="score-card">
+          <div class="score-label">Monitoring & Ops</div>
+          <div class="score-value">4/10</div>
+        </div>
+        <div class="score-card">
+          <div class="score-label">Deployment Readiness</div>
+          <div class="score-value">4/10</div>
+        </div>
+      </div>
+
+      <h2>Priority Checklist</h2>
+
+      <h3>P0 - Must Do Before Public Production</h3>
+      <ul>
+        <li>Add environment validation at startup for secrets and required DB settings.</li>
+        <li>Verify all admin routes enforce role-based authorization, not just authentication.</li>
+        <li>Harden refresh token cookie settings for production HTTPS use.</li>
+        <li>Add upload validation for file type, file size, malicious names, and path traversal.</li>
+        <li>Set up CI/CD with lint + build + tests + dependency audit.</li>
+        <li>Introduce automated test coverage for auth, booking, admin, and reservation edge cases.</li>
+        <li>Define backup/restore and rollback strategy for the database.</li>
+        <li>Set up monitoring and alerting for errors, latency, and DB health.</li>
+      </ul>
+
+      <h3>P1 - Strongly Recommended Before Launch</h3>
+      <ul>
+        <li>Deploy to managed production infrastructure instead of local XAMPP-style setup.</li>
+        <li>Use structured logging with request IDs and user IDs.</li>
+        <li>Review all admin actions for audit logging.</li>
+        <li>Add per-route rate limits and abuse protections.</li>
+        <li>Validate all request payloads and enforce request-size limits.</li>
+        <li>Review email sending, retries, and failure behavior.</li>
+        <li>Implement graceful degradation for DB or email system outages.</li>
+      </ul>
+
+      <h3>P2 - Good to Have Soon After Launch</h3>
+      <ul>
+        <li>Feature flags.</li>
+        <li>Cache strategy for public listings and landing pages.</li>
+        <li>Performance profiling.</li>
+        <li>Business analytics and funnel tracking.</li>
+        <li>Data retention policy and privacy controls.</li>
+      </ul>
+
+      <h2>Security Audit</h2>
+
+      <h3>Authentication</h3>
+      <div class="ok">
+        Good: bcryptjs is used for password hashing, JWT is used for access/refresh tokens, and queries are parameterized.
+      </div>
+      <ul>
+        <li>Passwords are hashed with bcrypt before storage.</li>
+        <li>JWT access tokens and refresh tokens are issued with expiration times.</li>
+        <li>Auth routes validate input schema using Zod.</li>
+      </ul>
+
+      <div class="warning">
+        Risks: refresh token cookie settings are not fully hardened for production, and there is no clear evidence of a dedicated admin authorization middleware by route.
+      </div>
+      <ul>
+        <li>Cookie strategy needs careful tuning for HTTPS and cross-site conditions.</li>
+        <li>Admin access must be enforced by middleware and not assumed by URL structure.</li>
+        <li>Threat models for brute force and account takeover should be reviewed and tuned.</li>
+      </ul>
+
+      <h3>Authorization</h3>
+      <div class="critical">
+        This is the most important verification area before launch. The repository includes numerous admin routes and dashboard-specific APIs; those must enforce role-based authorization strictly.
+      </div>
+      <ul>
+        <li>Confirm only admins can access admin dashboards and revenue/booking management APIs.</li>
+        <li>Protect pricing, reservations, customer data, and loyalty management endpoints.</li>
+        <li>Ensure admin actions are logged and auditable.</li>
+      </ul>
+
+      <h3>Database Layer</h3>
+      <ul>
+        <li>Parameterization is used in the auth routes, which is a good sign.</li>
+        <li>There are migration and seed scripts, which helps local setup and deployment consistency.</li>
+      </ul>
+      <div class="warning">
+        Risks: local XAMPP assumptions are fine for development but not production, and there is no visible backup or rollback strategy.
+      </div>
+      <ul>
+        <li>Move to managed MySQL or PostgreSQL for production.</li>
+        <li>Use automated backups and DB monitoring.</li>
+        <li>Add migration rollback procedures.</li>
+      </ul>
+
+      <h3>Upload and Media Handling</h3>
+      <div class="warning">
+        File upload routes are a common production risk if not tightly controlled.
+      </div>
+      <ul>
+        <li>Whitelist allowed file types.</li>
+        <li>Set file-size limits.</li>
+        <li>Prevent path traversal and malicious filenames.</li>
+        <li>Scan uploaded media if it is user-supplied.</li>
+      </ul>
+
+      <h3>API Security</h3>
+      <div class="ok">
+        Good: Helmet, CORS, rate limiting, JSON parsing, and a 404 handler are all present.
+      </div>
+      <ul>
+        <li>Security headers are enabled with Helmet.</li>
+        <li>CORS is configured.</li>
+        <li>Application-level rate limiting is in place.</li>
+      </ul>
+      <div class="warning">
+        Risks: there is no visible proof of production-grade request validation for all endpoints, no clear secrets-validation startup check, and no visible monitoring pipeline.
+      </div>
+
+      <h2>Deployment Recommendations</h2>
+      <h3>Frontend</h3>
+      <ul>
+        <li>Deploy <code>client/</code> to Vercel or Netlify for a production-grade Next.js setup.</li>
+        <li>Use environment variables for public API URLs and site config.</li>
+      </ul>
+
+      <h3>Backend</h3>
+      <ul>
+        <li>Deploy <code>server/</code> to Railway, Render, Fly.io, DigitalOcean App Platform, or a similar managed Node runtime.</li>
+        <li>Use managed MySQL or PostgreSQL instead of local XAMPP.</li>
+      </ul>
+
+      <h3>Database</h3>
+      <ul>
+        <li>Use managed DB with automated backups and DB health monitoring.</li>
+        <li>Separate staging and production environments.</li>
+      </ul>
+
+      <h3>CI/CD</h3>
+      <ul>
+        <li>Run lint, build, tests, and dependency audit on every push.</li>
+        <li>Block deployment if checks fail.</li>
+      </ul>
+
+      <h3>Monitoring</h3>
+      <ul>
+        <li>Add Sentry for frontend/backend error tracking.</li>
+        <li>Set uptime checks and DB health checks.</li>
+        <li>Aggregate logs and inspect request error trends.</li>
+      </ul>
+
+      <h2>Launch Plan</h2>
+      <ol>
+        <li>Hardening sprint: env validation, role checks, upload validation, monitoring, backup plan.</li>
+        <li>Staging deployment: production-like config and real DB.</li>
+        <li>Private beta: pilot with a limited audience.</li>
+        <li>Production launch: after stable metrics and rollback process are proven.</li>
+      </ol>
+
+      <h2>Final Verdict</h2>
+      <div class="warning">
+        <strong>MVP / Beta:</strong> 70/100<br />
+        <strong>Production-ready:</strong> 45–55/100
+      </div>
+      <p>
+        This project is a strong beta application with good architectural foundations. It is not yet production-ready for a public launch, but it is near enough to become a credible private beta or pilot deployment with a focused hardening sprint.
+      </p>
+    </div>
+  </body>
+</html>
