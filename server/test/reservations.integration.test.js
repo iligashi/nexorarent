@@ -412,11 +412,11 @@ test('MySQL persists admin audit action, target, and structured change summary',
   const requestId = uuidv4();
   const targetId = uuidv4();
   const summary = { status: { from: 'pending', to: 'confirmed' } };
-  let insertPromise;
-  const middleware = createAdminAuditAction((sql, params) => {
-    insertPromise = query(sql, params);
-    return insertPromise;
+  let resolveResponseEnded;
+  const responseEnded = new Promise(resolve => {
+    resolveResponseEnded = resolve;
   });
+  const middleware = createAdminAuditAction(query);
   const req = {
     method: 'PUT',
     requestId,
@@ -428,12 +428,15 @@ test('MySQL persists admin audit action, target, and structured change summary',
   res.statusCode = 200;
   res.headersSent = false;
   res.removeHeader = () => {};
-  res.end = () => res;
+  res.end = () => {
+    resolveResponseEnded();
+    return res;
+  };
 
   try {
     middleware(req, res, () => {});
     res.end();
-    await insertPromise;
+    await responseEnded;
     const { rows } = await query(
       'SELECT action, target_id, change_summary FROM admin_audit_log WHERE request_id = $1',
       [requestId]
