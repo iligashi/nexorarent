@@ -10,6 +10,32 @@ permissions:
 jobs:
   server:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: nexorarent_test
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_password
+          MYSQL_ROOT_PASSWORD: root_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot_password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: nexorarent_test
+      DB_USER: test_user
+      DB_PASSWORD: test_password
+      MIGRATION_DB_USER: test_user
+      MIGRATION_DB_PASSWORD: test_password
+      JWT_SECRET: test-access-token-secret-at-least-32-characters
+      JWT_REFRESH_SECRET: test-refresh-token-secret-at-least-32-chars
+      RUN_DB_INTEGRATION_TESTS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,9 +45,11 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - run: npm ci
         working-directory: server
+      - run: npm run db:migrate
+        working-directory: server
       - run: npm test
         working-directory: server
-      - run: npm audit --omit=dev --audit-level=high
+      - run: npm audit --audit-level=moderate
         working-directory: server
 
   client:
@@ -39,5 +67,5 @@ jobs:
         working-directory: client
       - run: npm run build
         working-directory: client
-      - run: npm audit --omit=dev --audit-level=high
+      - run: npm audit --audit-level=moderate
         working-directory: client

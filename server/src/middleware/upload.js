@@ -9,6 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.join(__dirname, '..', '..', 'uploads');
 const acceptedFormats = new Set(['jpeg', 'png', 'webp', 'avif']);
 const acceptedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+const maxConcurrentUploadRequests = 2;
+let activeUploadRequests = 0;
 
 const fileFilter = (req, file, cb) => {
   if (acceptedMimeTypes.has(file.mimetype)) {
@@ -24,13 +26,30 @@ export const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024,
-    files: 10,
-    fields: 20,
-    parts: 30,
-    fieldSize: 64 * 1024,
+    fileSize: 3 * 1024 * 1024,
+    files: 3,
+    fields: 10,
+    parts: 13,
+    fieldSize: 32 * 1024,
   },
 });
+
+export function limitUploadConcurrency(req, res, next) {
+  if (activeUploadRequests >= maxConcurrentUploadRequests) {
+    return res.status(503).json({ error: 'Image processing capacity is currently full; try again shortly' });
+  }
+
+  activeUploadRequests++;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    activeUploadRequests--;
+  };
+  res.once('finish', release);
+  res.once('close', release);
+  next();
+}
 
 export async function saveOptimizedImage(buffer) {
   let optimized;

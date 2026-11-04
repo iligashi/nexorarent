@@ -11,7 +11,7 @@ Full-stack car rental platform built with Next.js and Express.js, using MySQL (X
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) v20.9 or higher
-- [XAMPP](https://www.apachefriends.org/) (Apache + MySQL/MariaDB)
+- [Docker Compose](https://docs.docker.com/compose/) with MySQL 8.4, or [XAMPP](https://www.apachefriends.org/) with MySQL/MariaDB
 
 ## Local Setup
 
@@ -22,9 +22,15 @@ git clone <repo-url>
 cd nexora-rent
 ```
 
-### 2. Start XAMPP
+### 2. Start MySQL
 
-Open XAMPP Control Panel and start **Apache** and **MySQL** modules.
+For the repository's development-only Compose database, copy `.env.example` to `.env`, replace the example database passwords with generated local values, and start MySQL:
+
+```bash
+docker compose up -d
+```
+
+The database is bound to `127.0.0.1:3307`; the Compose file is for local development only. Alternatively, start MySQL in XAMPP and create the `drenas_rentacar` database before migrating.
 
 ### 3. Backend setup
 
@@ -36,12 +42,12 @@ npm install
 Create a `.env` file inside `server/`:
 
 ```env
-# Database (MySQL - XAMPP)
-DB_HOST=localhost
-DB_PORT=3306
+# Database (MySQL - local Compose)
+DB_HOST=127.0.0.1
+DB_PORT=3307
 DB_NAME=drenas_rentacar
-DB_USER=root
-DB_PASSWORD=
+DB_USER=nexorarent
+DB_PASSWORD=use_the_same_value_as_MYSQL_PASSWORD_in_root_.env
 
 # JWT
 JWT_SECRET=your_jwt_secret_key_here
@@ -62,7 +68,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-This creates the `drenas_rentacar` database, all tables, and populates it with 12 cars, 5 locations, 4 extras, and 1 admin account.
+The Compose service creates the `drenas_rentacar` database. With XAMPP, create the database before running migrations. The migration runner applies the schema and sample data but does not create databases or require database-administration credentials.
 
 Start the backend server:
 
@@ -198,6 +204,6 @@ Base URL: `http://localhost:4000/api/v1`
 ## Notes
 
 - The database uses MariaDB (included with XAMPP). No need to install MySQL separately.
-- Car images are managed via URL from the admin panel (no file upload needed).
-- The XAMPP default config (root user, no password, port 3306) is used by default.
-- If your XAMPP MySQL runs on a different port, update `DB_PORT` in `server/.env`.
+- The server uses MySQL-compatible SQL through `mysql2`; PostgreSQL is not supported.
+- For XAMPP, update `DB_HOST`, `DB_PORT`, `DB_USER`, and `DB_PASSWORD` in `server/.env` to match your local MySQL setup.
+- Never use the development Compose file or its local credentials as a production deployment template.

@@ -1,37 +1,32 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
 import mysql from 'mysql2/promise';
-import { config } from '../config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.join(__dirname, 'migrations');
+process.env.CONFIG_MODE = 'migration';
+const { config, validateMigrationCredentials } = await import('../config.js');
+const migrationLockName = `nexorarent:migrations:${createHash('sha256').update(config.DB_NAME).digest('hex').slice(0, 16)}`;
 
 async function migrate() {
-  // Connect without database first to create it if needed
-  const rootConn = await mysql.createConnection({
-    host: config.DB_HOST,
-    port: config.DB_PORT,
-    user: config.DB_USER,
-    password: config.DB_PASSWORD,
-    multipleStatements: true,
-  });
-
-  const dbName = config.DB_NAME;
-  await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-  await rootConn.end();
-
-  // Now connect to the database
+  validateMigrationCredentials(process.env);
   const conn = await mysql.createConnection({
     host: config.DB_HOST,
     port: config.DB_PORT,
-    user: config.DB_USER,
-    password: config.DB_PASSWORD,
-    database: dbName,
+    user: config.MIGRATION_DB_USER || config.DB_USER,
+    password: config.MIGRATION_DB_PASSWORD ?? config.DB_PASSWORD,
+    database: config.DB_NAME,
     multipleStatements: true,
   });
 
   try {
+    const [lockRows] = await conn.query('SELECT GET_LOCK(?, 60) AS acquired', [migrationLockName]);
+    if (lockRows[0]?.acquired !== 1) {
+      throw new Error(`Could not acquire the migration lock for ${config.DB_NAME}`);
+    }
+
     // Create migrations tracking table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS _migrations (
@@ -65,7 +60,11 @@ async function migrate() {
 
     console.log('\nMigrations complete.');
   } finally {
-    await conn.end();
+    try {
+      await conn.query('SELECT RELEASE_LOCK(?)', [migrationLockName]);
+    } finally {
+      await conn.end();
+    }
   }
 }
 
