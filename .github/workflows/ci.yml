@@ -38,7 +38,7 @@ jobs:
       JWT_REFRESH_SECRET: test-refresh-token-secret-at-least-32-chars
       RUN_DB_INTEGRATION_TESTS: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -56,7 +56,7 @@ jobs:
   client:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -100,7 +100,7 @@ jobs:
       E2E_ADMIN_EMAIL: e2e-admin@nexorarent.test
       E2E_ADMIN_PASSWORD: TestAdminPassword!2026
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
