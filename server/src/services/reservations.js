@@ -272,8 +272,13 @@ export async function updateReservationStatus(conn, reservationId, status, admin
     if (occupyingStatuses.includes(status) && !cars[0].is_available) {
       throw new ReservationError(409, 'Car is not available');
     }
-    const reservations = await connQuery(conn, 'SELECT * FROM reservations WHERE id = $1 FOR UPDATE', [reservationId]);
+    const reservations = await connQuery(
+      conn,
+      'SELECT status, pickup_date, dropoff_date FROM reservations WHERE id = $1 FOR UPDATE',
+      [reservationId]
+    );
     if (!reservations.length) throw new ReservationError(404, 'Reservation not found');
+    const previousStatus = reservations[0].status;
 
     if (occupyingStatuses.includes(status)) {
       const overlaps = await connQuery(conn, `
@@ -296,6 +301,7 @@ export async function updateReservationStatus(conn, reservationId, status, admin
     );
     await conn.commit();
     transactionStarted = false;
+    return { status: { from: previousStatus, to: status } };
   } catch (error) {
     if (transactionStarted) {
       try {
@@ -360,12 +366,40 @@ export async function extendReservation(conn, reservationId, extraDays) {
     const newDropoffMillis = localDateTimeToMillis(newDropoff.replace(' ', 'T'));
     const newTotalDays = Math.max(1, Math.ceil((newDropoffMillis - pickupMillis) / 86400000));
     const dailyRateCents = decimalToMinorUnits(reservation.daily_rate);
-    const oldExtrasCents = decimalToMinorUnits(reservation.extras_total || 0);
     const discountCents = decimalToMinorUnits(reservation.discount || 0);
-    const newExtrasCents = (oldExtrasCents * BigInt(newTotalDays) + BigInt(reservation.total_days) / 2n)
-      / BigInt(reservation.total_days);
+    const extraLines = await connQuery(conn, `
+      SELECT id, price FROM reservation_extras WHERE reservation_id = $1 FOR UPDATE
+    `, [reservationId]);
+    let newExtrasCents = 0n;
+    for (const extraLine of extraLines) {
+      const oldLinePriceCents = decimalToMinorUnits(extraLine.price);
+      const newLinePriceCents = (oldLinePriceCents * BigInt(newTotalDays)
+        + BigInt(reservation.total_days) / 2n) / BigInt(reservation.total_days);
+      await connQuery(conn, 'UPDATE reservation_extras SET price = $1 WHERE id = $2', [
+        minorUnitsToDecimal(newLinePriceCents),
+        extraLine.id,
+      ]);
+      newExtrasCents += newLinePriceCents;
+    }
+    if (!extraLines.length && decimalToMinorUnits(reservation.extras_total || 0) > 0n) {
+      const oldExtrasCents = decimalToMinorUnits(reservation.extras_total);
+      newExtrasCents = (oldExtrasCents * BigInt(newTotalDays) + BigInt(reservation.total_days) / 2n)
+        / BigInt(reservation.total_days);
+    }
     const grossCents = dailyRateCents * BigInt(newTotalDays) + newExtrasCents;
     const totalPriceCents = grossCents > discountCents ? grossCents - discountCents : 0n;
+    const changes = {
+      dropoff_date: { from: reservation.dropoff_iso.replace('T', ' '), to: newDropoff },
+      total_days: { from: Number(reservation.total_days), to: newTotalDays },
+      extras_total: {
+        from: String(reservation.extras_total || '0.00'),
+        to: minorUnitsToDecimal(newExtrasCents),
+      },
+      total_price: {
+        from: String(reservation.total_price),
+        to: minorUnitsToDecimal(totalPriceCents),
+      },
+    };
     await connQuery(conn, `
       UPDATE reservations SET dropoff_date = $1, total_days = $2, extras_total = $3, total_price = $4
       WHERE id = $5
@@ -375,6 +409,7 @@ export async function extendReservation(conn, reservationId, extraDays) {
     ]);
     await conn.commit();
     transactionStarted = false;
+    return changes;
   } catch (error) {
     if (transactionStarted) {
       try {
