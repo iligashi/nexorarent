@@ -22,7 +22,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
     if (form.password !== form.confirmPassword) return setError(t.passwordsNoMatch);
-    if (form.password.length < 6) return setError(t.passwordMinLength);
+    if (form.password.length < 12) return setError('Password must be at least 12 characters');
     setLoading(true);
     try {
       await register({ email: form.email, password: form.password, first_name: form.first_name, last_name: form.last_name, phone: form.phone || undefined });
@@ -53,7 +53,7 @@ export default function RegisterPage() {
           </div>
           <Input label={t.email} type="email" icon={Mail} value={form.email} onChange={set('email')} placeholder="your@email.com" />
           <Input label={t.phone} icon={Phone} value={form.phone} onChange={set('phone')} placeholder="+383 44 ..." />
-          <Input label={t.password} type="password" icon={Lock} value={form.password} onChange={set('password')} placeholder={t.minCharacters} />
+          <Input label={t.password} type="password" icon={Lock} value={form.password} onChange={set('password')} placeholder="At least 12 characters" />
           <Input label={t.confirmPassword} type="password" icon={Lock} value={form.confirmPassword} onChange={set('confirmPassword')} placeholder={t.repeatPassword} />
           <Button type="submit" size="lg" className="w-full" loading={loading}>{t.createAccount}</Button>
           <p className="text-text-muted text-sm text-center">

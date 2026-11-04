@@ -15,6 +15,10 @@ const productionEnvironment = {
   JWT_SECRET: 'a'.repeat(48),
   JWT_REFRESH_SECRET: 'b'.repeat(48),
   CLIENT_URL: 'https://rent.example.com',
+  REDIS_URL: 'redis://redis.example.com:6379',
+  OBJECT_STORAGE_BUCKET: 'nexorarent',
+  OBJECT_STORAGE_REGION: 'eu-central-1',
+  OBJECT_STORAGE_PUBLIC_URL: 'https://media.example.com',
 };
 
 test('accepts a configured production environment', () => {
@@ -87,5 +91,30 @@ test('requires HTTPS client origins in production', () => {
       CLIENT_URL: 'http://rent.example.com',
     }),
     /HTTPS origins/
+  );
+});
+
+test('requires shared rate limiting and durable image storage in production', () => {
+  for (const key of ['REDIS_URL', 'OBJECT_STORAGE_BUCKET', 'OBJECT_STORAGE_REGION', 'OBJECT_STORAGE_PUBLIC_URL']) {
+    const invalidEnvironment = { ...productionEnvironment };
+    delete invalidEnvironment[key];
+    assert.throws(
+      () => validateEnvironment(invalidEnvironment),
+      new RegExp(`${key} is required in production`)
+    );
+  }
+  assert.throws(
+    () => validateEnvironment({
+      ...productionEnvironment,
+      OBJECT_STORAGE_PUBLIC_URL: 'http://media.example.com',
+    }),
+    /OBJECT_STORAGE_PUBLIC_URL must use HTTPS/
+  );
+  assert.throws(
+    () => validateEnvironment({
+      ...productionEnvironment,
+      OBJECT_STORAGE_ENDPOINT: 'http://minio.example.com',
+    }),
+    /OBJECT_STORAGE_ENDPOINT must use HTTPS/
   );
 });

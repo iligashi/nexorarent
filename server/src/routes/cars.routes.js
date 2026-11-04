@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { query } from '../db/pool.js';
+import { getConnection, query } from '../db/pool.js';
+import { checkCarAvailability } from '../services/reservations.js';
 
 const router = Router();
 
@@ -128,21 +129,20 @@ router.get('/:slug', async (req, res, next) => {
 
 // Check availability
 router.get('/:id/availability', async (req, res, next) => {
+  let conn;
   try {
     const { pickup_date, dropoff_date } = req.query;
     if (!pickup_date || !dropoff_date) {
       return res.status(400).json({ error: 'pickup_date and dropoff_date required' });
     }
 
-    const { rows } = await query(`
-      SELECT NOT EXISTS (
-        SELECT 1 FROM reservations
-        WHERE car_id = $1
-          AND status IN ('confirmed', 'active')
-          AND pickup_date < $3
-          AND dropoff_date > $2
-      ) AS is_available
-    `, [req.params.id, pickup_date, dropoff_date]);
+    conn = await getConnection();
+    const isAvailable = await checkCarAvailability(
+      conn,
+      req.params.id,
+      String(pickup_date),
+      String(dropoff_date)
+    );
 
     // Also get blocked dates for calendar
     const { rows: blocked } = await query(`
@@ -151,8 +151,9 @@ router.get('/:id/availability', async (req, res, next) => {
       ORDER BY pickup_date
     `, [req.params.id]);
 
-    res.json({ is_available: !!rows[0].is_available, blocked_dates: blocked });
+    res.json({ is_available: isAvailable, blocked_dates: blocked });
   } catch (err) { next(err); }
+  finally { conn?.release(); }
 });
 
 export default router;
