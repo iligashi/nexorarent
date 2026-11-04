@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateEnvironment } from '../src/config.js';
+import { validateEnvironment, validateMigrationCredentials } from '../src/config.js';
 
 const productionEnvironment = {
   NODE_ENV: 'production',
@@ -10,6 +10,8 @@ const productionEnvironment = {
   DB_NAME: 'rental',
   DB_USER: 'app',
   DB_PASSWORD: 'a-database-password',
+  MIGRATION_DB_USER: 'migrator',
+  MIGRATION_DB_PASSWORD: 'a-migration-password',
   JWT_SECRET: 'a'.repeat(48),
   JWT_REFRESH_SECRET: 'b'.repeat(48),
   CLIENT_URL: 'https://rent.example.com',
@@ -25,6 +27,38 @@ test('rejects missing production database settings and secrets', () => {
   assert.throws(
     () => validateEnvironment({ NODE_ENV: 'production' }),
     /DB_HOST is required in production/
+  );
+  assert.equal(validateEnvironment({
+    ...productionEnvironment,
+    MIGRATION_DB_USER: undefined,
+    MIGRATION_DB_PASSWORD: undefined,
+  }).NODE_ENV, 'production');
+});
+
+test('requires separate migration credentials only for production migration runs', () => {
+  assert.doesNotThrow(() => validateMigrationCredentials(productionEnvironment));
+  assert.equal(validateEnvironment({
+    NODE_ENV: 'production',
+    DB_HOST: productionEnvironment.DB_HOST,
+    DB_PORT: productionEnvironment.DB_PORT,
+    DB_NAME: productionEnvironment.DB_NAME,
+    DB_USER: productionEnvironment.DB_USER,
+    MIGRATION_DB_USER: productionEnvironment.MIGRATION_DB_USER,
+    MIGRATION_DB_PASSWORD: productionEnvironment.MIGRATION_DB_PASSWORD,
+  }, 'migration').NODE_ENV, 'production');
+  assert.throws(
+    () => validateMigrationCredentials({
+      ...productionEnvironment,
+      MIGRATION_DB_PASSWORD: undefined,
+    }),
+    /MIGRATION_DB_PASSWORD is required in production/
+  );
+  assert.throws(
+    () => validateMigrationCredentials({
+      ...productionEnvironment,
+      MIGRATION_DB_USER: productionEnvironment.DB_USER,
+    }),
+    /MIGRATION_DB_USER must be different/
   );
 });
 

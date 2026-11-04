@@ -4,7 +4,14 @@ import PDFDocument from 'pdfkit';
 import { query, getConnection } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireAdmin, requireManager } from '../middleware/admin.js';
-import { removeUploadedImage, saveOptimizedImage, upload } from '../middleware/upload.js';
+import { limitUploadConcurrency, removeUploadedImage, saveOptimizedImage, upload } from '../middleware/upload.js';
+import { validate } from '../middleware/validate.js';
+import {
+  adminReservationSchema,
+  createReservation,
+  extendReservation,
+  updateReservationStatus,
+} from '../services/reservations.js';
 import { earnLoyaltyPoints } from './admin.loyalty.routes.js';
 import { sendNotification } from './admin.notifications.routes.js';
 import { logger } from '../utils/logger.js';
@@ -111,17 +118,16 @@ router.get('/reservations', async (req, res, next) => {
 
 // Update reservation status
 router.put('/reservations/:id/status', async (req, res, next) => {
+  let conn;
   try {
+    conn = await getConnection();
     const { status, admin_notes } = req.body;
     const validStatuses = ['pending', 'confirmed', 'active', 'completed', 'cancelled', 'rejected'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    await query(
-      `UPDATE reservations SET status = $1, admin_notes = COALESCE($2, admin_notes) WHERE id = $3`,
-      [status, admin_notes || null, req.params.id]
-    );
+    await updateReservationStatus(conn, req.params.id, status, admin_notes);
     const { rows } = await query(`
       SELECT r.*, COALESCE(r.guest_phone, u.phone) AS customer_phone,
         COALESCE(r.guest_name, CONCAT(u.first_name, ' ', u.last_name)) AS customer_name
@@ -147,44 +153,21 @@ router.put('/reservations/:id/status', async (req, res, next) => {
 
     res.json({ reservation });
   } catch (err) { next(err); }
+  finally { conn?.release(); }
 });
 
 // Extend reservation by adding extra days
 router.put('/reservations/:id/extend', async (req, res, next) => {
+  let conn;
   try {
+    conn = await getConnection();
     const { extra_days } = req.body;
-    const days = parseInt(extra_days);
-    if (!days || days < 1 || days > 365) {
+    const days = Number(extra_days);
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
       return res.status(400).json({ error: 'Please provide a valid number of days (1-365)' });
     }
 
-    const { rows } = await query(`
-      SELECT r.*, c.price_per_day FROM reservations r
-      JOIN cars c ON c.id = r.car_id
-      WHERE r.id = $1
-    `, [req.params.id]);
-
-    if (rows.length === 0) return res.status(404).json({ error: 'Reservation not found' });
-    const reservation = rows[0];
-
-    if (['completed', 'cancelled', 'rejected'].includes(reservation.status)) {
-      return res.status(400).json({ error: 'Cannot extend a ' + reservation.status + ' reservation' });
-    }
-
-    const newDropoff = new Date(reservation.dropoff_date);
-    newDropoff.setDate(newDropoff.getDate() + days);
-    const newTotalDays = reservation.total_days + days;
-    const additionalCost = parseFloat(reservation.daily_rate) * days;
-    const newExtrasTotal = reservation.total_days > 0
-      ? (parseFloat(reservation.extras_total) / reservation.total_days) * newTotalDays
-      : parseFloat(reservation.extras_total);
-    const newTotalPrice = parseFloat(reservation.daily_rate) * newTotalDays + newExtrasTotal - parseFloat(reservation.discount || 0);
-
-    await query(`
-      UPDATE reservations
-      SET dropoff_date = $1, total_days = $2, extras_total = $3, total_price = $4
-      WHERE id = $5
-    `, [newDropoff.toISOString(), newTotalDays, newExtrasTotal, newTotalPrice, req.params.id]);
+    await extendReservation(conn, req.params.id, days);
 
     const { rows: updated } = await query(`
       SELECT r.*, c.brand, c.model,
@@ -199,6 +182,7 @@ router.put('/reservations/:id/extend', async (req, res, next) => {
 
     res.json({ reservation: updated[0] });
   } catch (err) { next(err); }
+  finally { conn?.release(); }
 });
 
 // Calendar data
@@ -330,7 +314,7 @@ router.post('/cars/:id/images/url', requireManager, async (req, res, next) => {
 });
 
 // Car image upload (file)
-router.post('/cars/:id/images', requireManager, upload.array('images', 10), async (req, res, next) => {
+router.post('/cars/:id/images', requireManager, limitUploadConcurrency, upload.array('images', 3), async (req, res, next) => {
   const savedImages = [];
   let conn;
   try {
@@ -549,85 +533,17 @@ async function connQuery(conn, sql, params = []) {
   return { rows };
 }
 
-function generateReservationNo() {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `DRC-${date}-${rand}`;
-}
-
 // Admin create reservation for a customer
-router.post('/reservations', async (req, res, next) => {
-  const conn = await getConnection();
+router.post('/reservations', validate(adminReservationSchema), async (req, res, next) => {
+  let conn;
   try {
-    const { car_id, pickup_location, dropoff_location, pickup_date, dropoff_date,
-      customer_name, customer_email, customer_phone, notes, admin_notes, extras, status } = req.body;
-
-    if (!car_id || !pickup_location || !dropoff_location || !pickup_date || !dropoff_date || !customer_name) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const pickupDt = new Date(pickup_date);
-    const dropoffDt = new Date(dropoff_date);
-    if (dropoffDt <= pickupDt) {
-      return res.status(400).json({ error: 'Dropoff date must be after pickup date' });
-    }
-
-    // Get car price
-    const { rows: carRows } = await connQuery(conn, 'SELECT price_per_day FROM cars WHERE id = $1', [car_id]);
-    if (carRows.length === 0) return res.status(404).json({ error: 'Car not found' });
-
-    const totalDays = Math.max(1, Math.ceil((dropoffDt - pickupDt) / (1000 * 60 * 60 * 24)));
-    const dailyRate = parseFloat(carRows[0].price_per_day);
-
-    // Seasonal pricing
-    const { rows: seasonal } = await connQuery(conn, `
-      SELECT multiplier FROM seasonal_pricing
-      WHERE car_id = $1 AND start_date <= $2 AND end_date >= $3 LIMIT 1
-    `, [car_id, pickup_date, dropoff_date]);
-    const multiplier = seasonal.length > 0 ? parseFloat(seasonal[0].multiplier) : 1.0;
-
-    const basePrice = dailyRate * multiplier * totalDays;
-
-    // Calculate extras
-    let extrasTotal = 0;
-    const extrasToInsert = [];
-    if (extras && extras.length > 0) {
-      for (const ext of extras) {
-        const { rows: extRows } = await connQuery(conn, 'SELECT price_per_day FROM extras WHERE id = $1', [ext.extra_id]);
-        if (extRows.length > 0) {
-          const extPrice = parseFloat(extRows[0].price_per_day) * totalDays * (ext.quantity || 1);
-          extrasTotal += extPrice;
-          extrasToInsert.push({ extra_id: ext.extra_id, quantity: ext.quantity || 1, price: extPrice });
-        }
-      }
-    }
-
-    const totalPrice = basePrice + extrasTotal;
-    const reservationNo = generateReservationNo();
-    const reservationId = uuidv4();
-    const resStatus = status || 'confirmed';
-
-    await conn.beginTransaction();
-
-    await connQuery(conn, `
-      INSERT INTO reservations (id, reservation_no, user_id, car_id, pickup_location, dropoff_location,
-        pickup_date, dropoff_date, status, total_days, daily_rate, extras_total, total_price,
-        guest_name, guest_email, guest_phone, notes, admin_notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-    `, [
-      reservationId, reservationNo, null, car_id, pickup_location, dropoff_location,
-      pickup_date, dropoff_date, resStatus, totalDays, dailyRate * multiplier, extrasTotal, totalPrice,
-      customer_name, customer_email || null, customer_phone || null, notes || null, admin_notes || null,
-    ]);
-
-    for (const ext of extrasToInsert) {
-      await connQuery(conn,
-        'INSERT INTO reservation_extras (id, reservation_id, extra_id, quantity, price) VALUES ($1,$2,$3,$4,$5)',
-        [uuidv4(), reservationId, ext.extra_id, ext.quantity, ext.price]
-      );
-    }
-
-    await conn.commit();
+    conn = await getConnection();
+    const data = req.validated;
+    const reservation = await createReservation(conn, {
+      data,
+      adminNotes: data.admin_notes,
+      status: data.status || 'confirmed',
+    });
 
     // Return full reservation with car info
     const { rows: resRows } = await query(`
@@ -638,14 +554,13 @@ router.post('/reservations', async (req, res, next) => {
       LEFT JOIN locations pl ON pl.id = r.pickup_location
       LEFT JOIN locations dl ON dl.id = r.dropoff_location
       WHERE r.id = $1
-    `, [reservationId]);
+    `, [reservation.id]);
 
     res.status(201).json({ reservation: resRows[0] });
   } catch (err) {
-    await conn.rollback();
     next(err);
   } finally {
-    conn.release();
+    conn?.release();
   }
 });
 

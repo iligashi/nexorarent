@@ -7,6 +7,13 @@ import { query } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { refreshCookieOptions } from '../config.js';
+import { requireTrustedOrigin } from '../middleware/trusted-origin.js';
+import {
+  issueRefreshToken,
+  revokeRefreshToken,
+  revokeUserRefreshSessions,
+  rotateRefreshToken,
+} from '../services/refresh-tokens.js';
 
 const router = Router();
 
@@ -29,10 +36,8 @@ const profileSchema = z.object({
   phone: z.string().trim().max(30).optional(),
 }).refine(data => Object.keys(data).length > 0, 'At least one field is required');
 
-function generateTokens(userId) {
-  const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
-  const refreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
-  return { accessToken, refreshToken };
+function createAccessToken(userId) {
+  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
 }
 
 // Register
@@ -59,11 +64,11 @@ router.post('/register', validate(registerSchema), async (req, res, next) => {
     );
 
     const user = rows[0];
-    const tokens = generateTokens(user.id);
+    const refreshToken = await issueRefreshToken(user.id);
 
-    res.cookie('refreshToken', tokens.refreshToken, refreshCookieOptions);
+    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
 
-    res.status(201).json({ user, accessToken: tokens.accessToken });
+    res.status(201).json({ user, accessToken: createAccessToken(user.id) });
   } catch (err) { next(err); }
 });
 
@@ -86,17 +91,17 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const tokens = generateTokens(user.id);
+    const refreshToken = await issueRefreshToken(user.id);
     delete user.password_hash;
 
-    res.cookie('refreshToken', tokens.refreshToken, refreshCookieOptions);
+    res.cookie('refreshToken', refreshToken, refreshCookieOptions);
 
-    res.json({ user, accessToken: tokens.accessToken });
+    res.json({ user, accessToken: createAccessToken(user.id) });
   } catch (err) { next(err); }
 });
 
 // Refresh token
-router.post('/refresh', async (req, res, next) => {
+router.post('/refresh', requireTrustedOrigin, async (req, res, next) => {
   try {
     const token = req.cookies?.refreshToken;
     if (!token) return res.status(401).json({ error: 'Refresh token required' });
@@ -105,26 +110,39 @@ router.post('/refresh', async (req, res, next) => {
     try {
       decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
     } catch {
+      res.clearCookie('refreshToken', refreshCookieOptions);
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+    if (!decoded.userId || !decoded.jti) {
+      res.clearCookie('refreshToken', refreshCookieOptions);
       return res.status(401).json({ error: 'Invalid refresh token' });
     }
 
-    const { rows } = await query(
-      'SELECT id, email, first_name, last_name, phone, role FROM users WHERE id = $1',
-      [decoded.userId]
-    );
-    if (rows.length === 0) return res.status(401).json({ error: 'User not found' });
-
-    const tokens = generateTokens(rows[0].id);
-
-    res.cookie('refreshToken', tokens.refreshToken, refreshCookieOptions);
-
-    res.json({ user: rows[0], accessToken: tokens.accessToken });
+    const session = await rotateRefreshToken(token, decoded);
+    if (!session) {
+      res.clearCookie('refreshToken', refreshCookieOptions);
+      return res.status(401).json({ error: 'Refresh token has expired or been revoked' });
+    }
+    res.cookie('refreshToken', session.refreshToken, refreshCookieOptions);
+    res.json({ user: session.user, accessToken: createAccessToken(session.user.id) });
   } catch (err) { next(err); }
 });
 
-router.post('/logout', (req, res) => {
-  res.clearCookie('refreshToken', refreshCookieOptions);
-  res.status(204).end();
+router.post('/logout', requireTrustedOrigin, async (req, res, next) => {
+  try {
+    const token = req.cookies?.refreshToken;
+    if (token) await revokeRefreshToken(token);
+    res.clearCookie('refreshToken', refreshCookieOptions);
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+
+router.post('/logout-all', authenticate, async (req, res, next) => {
+  try {
+    await revokeUserRefreshSessions(req.user.id);
+    res.clearCookie('refreshToken', refreshCookieOptions);
+    res.status(204).end();
+  } catch (err) { next(err); }
 });
 
 // Get current user
