@@ -127,7 +127,7 @@ router.put('/reservations/:id/status', async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    await updateReservationStatus(conn, req.params.id, status, admin_notes);
+    req.auditChangeSummary = await updateReservationStatus(conn, req.params.id, status, admin_notes);
     const { rows } = await query(`
       SELECT r.*, COALESCE(r.guest_phone, u.phone) AS customer_phone,
         COALESCE(r.guest_name, CONCAT(u.first_name, ' ', u.last_name)) AS customer_name
@@ -167,7 +167,7 @@ router.put('/reservations/:id/extend', async (req, res, next) => {
       return res.status(400).json({ error: 'Please provide a valid number of days (1-365)' });
     }
 
-    await extendReservation(conn, req.params.id, days);
+    req.auditChangeSummary = await extendReservation(conn, req.params.id, days);
 
     const { rows: updated } = await query(`
       SELECT r.*, c.brand, c.model,

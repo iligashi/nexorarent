@@ -1,11 +1,13 @@
 import 'dotenv/config';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'events';
 import { createHash } from 'crypto';
 import jwt from 'jsonwebtoken';
 import mysql from 'mysql2/promise';
 import { v4 as uuidv4 } from 'uuid';
-import pool from '../src/db/pool.js';
+import pool, { query } from '../src/db/pool.js';
+import { createAdminAuditAction } from '../src/middleware/request-context.js';
 import {
   issueRefreshToken,
   revokeRefreshToken,
@@ -176,6 +178,268 @@ test('MySQL serializes overlapping public/admin reservations and enforces bookin
     } finally {
       await Promise.all([setup, connectionA, connectionB].filter(Boolean).map(connection => connection.end()));
     }
+  }
+});
+
+test('MySQL serializes booking against reactivation and extension against cancellation races', { skip: !enabled }, async () => {
+  const connectionOptions = {
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'drenas_rentacar',
+  };
+  let setup;
+  let connectionA;
+  let connectionB;
+  const carId = uuidv4();
+  const pickupLocation = uuidv4();
+  const dropoffLocation = uuidv4();
+  const reactivatedId = uuidv4();
+  const extendableId = uuidv4();
+  const cancellableId = uuidv4();
+  const statusSummaryId = uuidv4();
+
+  try {
+    setup = await mysql.createConnection(connectionOptions);
+    connectionA = await mysql.createConnection(connectionOptions);
+    connectionB = await mysql.createConnection(connectionOptions);
+    await setup.execute('INSERT INTO locations (id, name, is_active) VALUES (?, ?, true), (?, ?, true)', [
+      pickupLocation, 'Race test pickup', dropoffLocation, 'Race test dropoff',
+    ]);
+    await setup.execute(
+      `INSERT INTO cars (id, brand, model, year, slug, category, fuel, transmission, price_per_day)
+       VALUES (?, 'Race', 'Test', 2030, ?, 'economy', 'petrol', 'manual', 12.00)`,
+      [carId, `reservation-race-${carId}`]
+    );
+
+    async function insertReservation(id, pickupOffset, dropoffOffset, status) {
+      await setup.execute(`
+        INSERT INTO reservations (id, reservation_no, car_id, pickup_location, dropoff_location,
+          pickup_date, dropoff_date, status, total_days, daily_rate, total_price)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 12.00, 24.00)
+      `, [
+        id,
+        `TST-${uuidv4().replace(/-/g, '').slice(0, 12)}`,
+        carId,
+        pickupLocation,
+        dropoffLocation,
+        localDateTime(pickupOffset).replace('T', ' '),
+        localDateTime(dropoffOffset).replace('T', ' '),
+        status,
+        dropoffOffset - pickupOffset,
+      ]);
+    }
+
+    await insertReservation(reactivatedId, 30, 32, 'cancelled');
+    const bookingRequest = {
+      car_id: carId,
+      pickup_location: pickupLocation,
+      dropoff_location: dropoffLocation,
+      pickup_date: localDateTime(30),
+      dropoff_date: localDateTime(32),
+      extras: [],
+    };
+    const bookingVsReactivation = await Promise.allSettled([
+      createReservation(connectionA, { data: bookingRequest }),
+      updateReservationStatus(connectionB, reactivatedId, 'confirmed'),
+    ]);
+    assert.equal(bookingVsReactivation.filter(result => result.status === 'fulfilled').length, 1);
+    const reactivationConflict = bookingVsReactivation.find(result => result.status === 'rejected');
+    assert.ok(reactivationConflict?.reason instanceof ReservationError);
+    assert.equal(reactivationConflict.reason.status, 409);
+
+    const [activeBookings] = await setup.execute(`
+      SELECT id FROM reservations
+      WHERE car_id = ? AND status IN ('pending', 'confirmed', 'active')
+        AND pickup_date < ? AND dropoff_date > ?
+    `, [carId, localDateTime(32).replace('T', ' '), localDateTime(30).replace('T', ' ')]);
+    assert.equal(activeBookings.length, 1);
+
+    await insertReservation(extendableId, 40, 42, 'pending');
+    await insertReservation(cancellableId, 42, 44, 'pending');
+    const extensionVsCancellation = await Promise.allSettled([
+      extendReservation(connectionA, extendableId, 1),
+      updateReservationStatus(connectionB, cancellableId, 'cancelled'),
+    ]);
+    assert.equal(extensionVsCancellation[1].status, 'fulfilled');
+    if (extensionVsCancellation[0].status === 'rejected') {
+      assert.ok(extensionVsCancellation[0].reason instanceof ReservationError);
+      assert.equal(extensionVsCancellation[0].reason.status, 409);
+    }
+
+    const [overlaps] = await setup.execute(`
+      SELECT first_booking.id
+      FROM reservations first_booking
+      JOIN reservations second_booking
+        ON second_booking.car_id = first_booking.car_id
+        AND second_booking.id > first_booking.id
+        AND first_booking.pickup_date < second_booking.dropoff_date
+        AND first_booking.dropoff_date > second_booking.pickup_date
+      WHERE first_booking.car_id = ?
+        AND first_booking.status IN ('pending', 'confirmed', 'active')
+        AND second_booking.status IN ('pending', 'confirmed', 'active')
+    `, [carId]);
+    assert.equal(overlaps.length, 0);
+
+    await insertReservation(statusSummaryId, 50, 52, 'pending');
+    const statusSummary = await updateReservationStatus(connectionA, statusSummaryId, 'confirmed');
+    assert.deepEqual(statusSummary, { status: { from: 'pending', to: 'confirmed' } });
+  } finally {
+    try {
+      if (setup) {
+        await setup.execute('DELETE FROM reservations WHERE car_id = ?', [carId]);
+        await setup.execute('DELETE FROM cars WHERE id = ?', [carId]);
+        await setup.execute('DELETE FROM locations WHERE id IN (?, ?)', [pickupLocation, dropoffLocation]);
+      }
+    } finally {
+      await Promise.all([setup, connectionA, connectionB].filter(Boolean).map(connection => connection.end()));
+    }
+  }
+});
+
+test('MySQL extension reprices extras, preserves fixed discounts, and rejects terminal states', { skip: !enabled }, async () => {
+  const connectionOptions = {
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'drenas_rentacar',
+  };
+  let setup;
+  let connection;
+  const carId = uuidv4();
+  const pickupLocation = uuidv4();
+  const dropoffLocation = uuidv4();
+  const extraId = uuidv4();
+
+  try {
+    setup = await mysql.createConnection(connectionOptions);
+    connection = await mysql.createConnection(connectionOptions);
+    await setup.execute('INSERT INTO locations (id, name, is_active) VALUES (?, ?, true), (?, ?, true)', [
+      pickupLocation, 'Extension test pickup', dropoffLocation, 'Extension test dropoff',
+    ]);
+    await setup.execute(
+      `INSERT INTO cars (id, brand, model, year, slug, category, fuel, transmission, price_per_day)
+       VALUES (?, 'Extension', 'Test', 2030, ?, 'economy', 'petrol', 'manual', 10.10)`,
+      [carId, `reservation-extension-${carId}`]
+    );
+    await setup.execute(
+      'INSERT INTO extras (id, name, price_per_day, is_active) VALUES (?, ?, 3.25, true)',
+      [extraId, 'Extension test extra']
+    );
+
+    const reservation = await createReservation(connection, {
+      data: {
+        car_id: carId,
+        pickup_location: pickupLocation,
+        dropoff_location: dropoffLocation,
+        pickup_date: localDateTime(60),
+        dropoff_date: localDateTime(62),
+        extras: [{ extra_id: extraId, quantity: 2 }],
+      },
+    });
+    assert.equal(String(reservation.extras_total), '13.00');
+    assert.equal(String(reservation.total_price), '33.20');
+    await setup.execute(
+      'UPDATE reservations SET discount = 5.00, total_price = 28.20 WHERE id = ?',
+      [reservation.id]
+    );
+
+    const changeSummary = await extendReservation(connection, reservation.id, 2);
+    assert.equal(changeSummary.total_days.from, 2);
+    assert.equal(changeSummary.total_days.to, 4);
+    assert.deepEqual(changeSummary.extras_total, { from: '13.00', to: '26.00' });
+    assert.deepEqual(changeSummary.total_price, { from: '28.20', to: '61.40' });
+
+    let [saved] = await setup.execute(
+      'SELECT total_days, extras_total, discount, total_price FROM reservations WHERE id = ?',
+      [reservation.id]
+    );
+    assert.equal(saved[0].total_days, 4);
+    assert.equal(String(saved[0].extras_total), '26.00');
+    assert.equal(String(saved[0].discount), '5.00');
+    assert.equal(String(saved[0].total_price), '61.40');
+    let [lineItems] = await setup.execute(
+      'SELECT extra_id, quantity, price FROM reservation_extras WHERE reservation_id = ?',
+      [reservation.id]
+    );
+    assert.deepEqual(lineItems.map(item => ({
+      extra_id: item.extra_id,
+      quantity: item.quantity,
+      price: String(item.price),
+    })), [{ extra_id: extraId, quantity: 2, price: '26.00' }]);
+
+    await setup.execute('UPDATE reservations SET discount = 1000.00 WHERE id = ?', [reservation.id]);
+    await extendReservation(connection, reservation.id, 1);
+    [saved] = await setup.execute(
+      'SELECT total_days, extras_total, total_price FROM reservations WHERE id = ?',
+      [reservation.id]
+    );
+    assert.equal(saved[0].total_days, 5);
+    assert.equal(String(saved[0].extras_total), '32.50');
+    assert.equal(String(saved[0].total_price), '0.00');
+    [lineItems] = await setup.execute(
+      'SELECT price FROM reservation_extras WHERE reservation_id = ?',
+      [reservation.id]
+    );
+    assert.equal(String(lineItems[0].price), '32.50');
+
+    await setup.execute("UPDATE reservations SET status = 'cancelled' WHERE id = ?", [reservation.id]);
+    await assert.rejects(
+      extendReservation(connection, reservation.id, 1),
+      error => error instanceof ReservationError && error.status === 400
+    );
+  } finally {
+    try {
+      if (setup) {
+        await setup.execute('DELETE FROM reservations WHERE car_id = ?', [carId]);
+        await setup.execute('DELETE FROM extras WHERE id = ?', [extraId]);
+        await setup.execute('DELETE FROM cars WHERE id = ?', [carId]);
+        await setup.execute('DELETE FROM locations WHERE id IN (?, ?)', [pickupLocation, dropoffLocation]);
+      }
+    } finally {
+      await Promise.all([setup, connection].filter(Boolean).map(current => current.end()));
+    }
+  }
+});
+
+test('MySQL persists admin audit action, target, and structured change summary', { skip: !enabled }, async () => {
+  const requestId = uuidv4();
+  const targetId = uuidv4();
+  const summary = { status: { from: 'pending', to: 'confirmed' } };
+  let insertPromise;
+  const middleware = createAdminAuditAction((sql, params) => {
+    insertPromise = query(sql, params);
+    return insertPromise;
+  });
+  const req = {
+    method: 'PUT',
+    requestId,
+    originalUrl: `/api/v1/admin/reservations/${targetId}/status`,
+    auditChangeSummary: summary,
+    user: { id: null },
+  };
+  const res = new EventEmitter();
+  res.statusCode = 200;
+
+  try {
+    middleware(req, res, () => {});
+    res.emit('finish');
+    await insertPromise;
+    const { rows } = await query(
+      'SELECT action, target_id, change_summary FROM admin_audit_log WHERE request_id = $1',
+      [requestId]
+    );
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].action, 'put /api/v1/admin/reservations/:id/status');
+    assert.equal(rows[0].target_id, targetId);
+    const savedSummary = typeof rows[0].change_summary === 'string'
+      ? JSON.parse(rows[0].change_summary)
+      : rows[0].change_summary;
+    assert.deepEqual(savedSummary, summary);
+  } finally {
+    await query('DELETE FROM admin_audit_log WHERE request_id = $1', [requestId]);
   }
 });
 

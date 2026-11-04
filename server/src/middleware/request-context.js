@@ -31,10 +31,11 @@ export function createAdminAuditAction(insert = query) {
       const path = req.originalUrl.split('?')[0];
       const targetId = path.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)?.[0] || null;
       const action = `${req.method.toLowerCase()} ${path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/ig, ':id')}`.slice(0, 120);
+      const changeSummary = req.auditChangeSummary ? JSON.stringify(req.auditChangeSummary) : null;
       insert(
-        `INSERT INTO admin_audit_log (request_id, user_id, method, path, status_code, action, target_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [req.requestId, req.user?.id || null, req.method, path, res.statusCode, action, targetId]
+        `INSERT INTO admin_audit_log (request_id, user_id, method, path, status_code, action, target_id, change_summary)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [req.requestId, req.user?.id || null, req.method, path, res.statusCode, action, targetId, changeSummary]
       ).catch(error => {
         logger.error('admin_audit_log_failed', {
           requestId: req.requestId,

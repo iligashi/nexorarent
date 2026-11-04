@@ -9,6 +9,7 @@ test('records the authenticated admin actor, action, and target after a successf
     method: 'PUT',
     requestId: 'request-1',
     originalUrl: `/api/v1/admin/reservations/${reservationId}/status?private=value`,
+    auditChangeSummary: { status: { from: 'pending', to: 'confirmed' } },
   };
   const res = new EventEmitter();
   res.statusCode = 200;
@@ -33,7 +34,9 @@ test('records the authenticated admin actor, action, and target after a successf
     200,
     'put /api/v1/admin/reservations/:id/status',
     reservationId,
+    JSON.stringify({ status: { from: 'pending', to: 'confirmed' } }),
   ]);
+  assert.match(inserted.sql, /target_id, change_summary/);
 });
 
 test('does not audit reads or failed admin responses', () => {
