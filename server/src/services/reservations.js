@@ -35,6 +35,12 @@ const reservationBaseSchema = z.object({
   })).max(20).optional(),
 });
 
+const guestReservationBaseSchema = reservationBaseSchema.extend({
+  guest_name: z.string().trim().min(1).max(200),
+  guest_email: z.string().trim().email().max(255),
+  guest_phone: z.string().trim().min(8).max(30),
+});
+
 function validateUniqueExtras(data, ctx) {
   if (isValidLocalDateTime(data.pickup_date)
     && isValidLocalDateTime(data.dropoff_date)
@@ -53,6 +59,7 @@ function validateUniqueExtras(data, ctx) {
 }
 
 export const reservationSchema = reservationBaseSchema.superRefine(validateUniqueExtras);
+export const guestReservationSchema = guestReservationBaseSchema.superRefine(validateUniqueExtras);
 
 export const adminReservationSchema = reservationBaseSchema
   .omit({ guest_name: true, guest_email: true, guest_phone: true })
@@ -124,6 +131,29 @@ async function acquireCarReservationLock(conn, carId) {
       throw new Error(`Could not release the reservation lock for car ${carId}`);
     }
   };
+}
+
+export async function checkCarAvailability(conn, carId, pickupDate, dropoffDate) {
+  if (!isValidLocalDateTime(pickupDate) || !isValidLocalDateTime(dropoffDate)) {
+    throw new ReservationError(400, 'Pickup and dropoff dates must be valid and dropoff must be after pickup');
+  }
+  const pickupMillis = localDateTimeToMillis(pickupDate);
+  const dropoffMillis = localDateTimeToMillis(dropoffDate);
+  if (dropoffMillis <= pickupMillis) {
+    throw new ReservationError(400, 'Pickup and dropoff dates must be valid and dropoff must be after pickup');
+  }
+
+  const cars = await connQuery(conn, 'SELECT is_available FROM cars WHERE id = $1', [carId]);
+  if (!cars.length) throw new ReservationError(404, 'Car not found');
+  if (!cars[0].is_available) return false;
+
+  const overlaps = await connQuery(conn, `
+    SELECT id FROM reservations
+    WHERE car_id = $1 AND status IN ('pending', 'confirmed', 'active')
+      AND pickup_date < $3 AND dropoff_date > $2
+    LIMIT 1
+  `, [carId, toMysqlDateTime(pickupDate), toMysqlDateTime(dropoffDate)]);
+  return overlaps.length === 0;
 }
 
 function generateReservationNo() {

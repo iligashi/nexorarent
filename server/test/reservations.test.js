@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import {
   adminReservationSchema,
   calculateRentalDays,
+  checkCarAvailability,
+  guestReservationSchema,
   reservationSchema,
   ReservationError,
 } from '../src/services/reservations.js';
+import { registerSchema } from '../src/routes/auth.routes.js';
 
 const validReservation = {
   car_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
@@ -22,6 +25,20 @@ test('rejects malformed, impossible, and non-positive reservation dates', () => 
     () => calculateRentalDays(validReservation.dropoff_date, validReservation.pickup_date),
     error => error instanceof ReservationError && error.status === 400
   );
+});
+
+test('availability rejects malformed dates before querying the database', async () => {
+  let queried = false;
+  await assert.rejects(
+    checkCarAvailability({
+      execute: async () => {
+        queried = true;
+        throw new Error('database must not be queried for invalid dates');
+      },
+    }, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'invalid', '2030-01-12T10:00:00'),
+    error => error instanceof ReservationError && error.status === 400
+  );
+  assert.equal(queried, false);
 });
 
 test('calculates rental days with a half-open date boundary', () => {
@@ -49,4 +66,31 @@ test('rejects duplicate extras in a reservation request', () => {
     ...validReservation,
     extras: [extra, extra],
   }).success, false);
+});
+
+test('requires guest contact details for anonymous reservations', () => {
+  const guest = {
+    ...validReservation,
+    guest_name: 'Guest Customer',
+    guest_email: 'guest@example.test',
+    guest_phone: '+38344123456',
+  };
+  assert.equal(guestReservationSchema.safeParse(guest).success, true);
+  for (const field of ['guest_name', 'guest_email', 'guest_phone']) {
+    const missing = { ...guest };
+    delete missing[field];
+    assert.equal(guestReservationSchema.safeParse(missing).success, false, `${field} is required`);
+  }
+  assert.equal(reservationSchema.safeParse(validReservation).success, true);
+});
+
+test('requires at least 12 characters for new registration passwords', () => {
+  const user = {
+    email: 'new-user@example.test',
+    first_name: 'New',
+    last_name: 'User',
+    password: 'short',
+  };
+  assert.equal(registerSchema.safeParse(user).success, false);
+  assert.equal(registerSchema.safeParse({ ...user, password: 'long-enough-password' }).success, true);
 });

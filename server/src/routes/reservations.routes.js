@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { query, getConnection } from '../db/pool.js';
 import { authenticate, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { createReservation, reservationSchema } from '../services/reservations.js';
+import { createReservation, guestReservationSchema, reservationSchema } from '../services/reservations.js';
 
 const router = Router();
 
 // Create reservation
-router.post('/', optionalAuth, validate(reservationSchema), async (req, res, next) => {
+router.post('/', optionalAuth, (req, res, next) => {
+  validate(req.user ? reservationSchema : guestReservationSchema)(req, res, next);
+}, async (req, res, next) => {
   let conn;
   try {
     conn = await getConnection();

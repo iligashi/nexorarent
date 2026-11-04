@@ -9,6 +9,12 @@ const environmentSchema = z.object({
   DB_NAME: z.string().min(1).default('drenas_rentacar'),
   DB_USER: z.string().min(1).default('root'),
   DB_PASSWORD: z.string().default(''),
+  REDIS_URL: z.string().url().optional(),
+  OBJECT_STORAGE_BUCKET: z.string().min(1).optional(),
+  OBJECT_STORAGE_REGION: z.string().min(1).optional(),
+  OBJECT_STORAGE_ENDPOINT: z.string().url().optional(),
+  OBJECT_STORAGE_PUBLIC_URL: z.string().url().optional(),
+  OBJECT_STORAGE_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('false'),
   MIGRATION_DB_USER: z.string().min(1).optional(),
   MIGRATION_DB_PASSWORD: z.string().optional(),
   JWT_SECRET: z.string().default(''),
@@ -41,6 +47,16 @@ export function validateEnvironment(env, mode = 'application') {
         errors.push(error.message.replace('Invalid migration configuration: ', ''));
       }
     } else {
+      if (!config.REDIS_URL) errors.push('REDIS_URL is required in production');
+      if (!config.OBJECT_STORAGE_BUCKET) errors.push('OBJECT_STORAGE_BUCKET is required in production');
+      if (!config.OBJECT_STORAGE_REGION) errors.push('OBJECT_STORAGE_REGION is required in production');
+      if (!config.OBJECT_STORAGE_PUBLIC_URL) errors.push('OBJECT_STORAGE_PUBLIC_URL is required in production');
+      if (config.OBJECT_STORAGE_PUBLIC_URL && !config.OBJECT_STORAGE_PUBLIC_URL.startsWith('https://')) {
+        errors.push('OBJECT_STORAGE_PUBLIC_URL must use HTTPS in production');
+      }
+      if (config.OBJECT_STORAGE_ENDPOINT && !config.OBJECT_STORAGE_ENDPOINT.startsWith('https://')) {
+        errors.push('OBJECT_STORAGE_ENDPOINT must use HTTPS in production');
+      }
       if (!env.DB_PASSWORD) errors.push('DB_PASSWORD is required in production');
       if (!env.CLIENT_URL?.trim()) errors.push('CLIENT_URL is required in production');
 

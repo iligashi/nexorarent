@@ -1,0 +1,40 @@
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: Boolean(process.env.CI),
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 2 : undefined,
+  reporter: 'list',
+  use: {
+    baseURL: 'http://127.0.0.1:3003',
+    trace: 'retain-on-failure',
+    ...devices['Desktop Chrome'],
+  },
+  webServer: [
+    {
+      command: 'npm run start',
+      url: 'http://127.0.0.1:4000/api/health',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PORT: '4000',
+      },
+      cwd: '../server',
+    },
+    {
+      command: 'npm run dev -- --hostname 127.0.0.1 --port 3003',
+      url: 'http://127.0.0.1:3003',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      env: {
+        ...process.env,
+        NEXT_PUBLIC_API_URL: 'http://127.0.0.1:4000/api/v1',
+        NEXT_PUBLIC_SITE_URL: 'http://127.0.0.1:3003',
+      },
+    },
+  ],
+});

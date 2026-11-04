@@ -16,6 +16,7 @@ import {
 } from '../src/services/refresh-tokens.js';
 import {
   createReservation,
+  checkCarAvailability,
   extendReservation,
   ReservationError,
   updateReservationStatus,
@@ -107,11 +108,13 @@ test('MySQL serializes overlapping public/admin reservations and enforces bookin
     assert.equal(String(savedRows[0].daily_rate), '11.62');
     assert.equal(String(savedRows[0].extras_total), '6.50');
     assert.equal(String(savedRows[0].total_price), '29.74');
+    assert.equal(await checkCarAvailability(connectionA, carId, pickupDate, dropoffDate), false);
 
     const boundaryReservation = await createReservation(connectionA, {
       data: { ...request, pickup_date: dropoffDate, dropoff_date: adjacentDropoff },
     });
     assert.ok(boundaryReservation.id);
+    assert.equal(await checkCarAvailability(connectionA, carId, adjacentDropoff, nextDropoff), true);
     await assert.rejects(
       extendReservation(connectionA, savedRows[0].id, 1),
       error => error instanceof ReservationError && error.status === 409
@@ -151,6 +154,7 @@ test('MySQL serializes overlapping public/admin reservations and enforces bookin
     );
 
     await setup.execute('UPDATE cars SET is_available = false WHERE id = ?', [carId]);
+    assert.equal(await checkCarAvailability(connectionA, carId, nextDropoff, localDateTime(26)), false);
     await assert.rejects(
       createReservation(connectionA, {
         data: { ...request, pickup_date: adjacentDropoff, dropoff_date: nextDropoff, extras: [] },
@@ -422,10 +426,13 @@ test('MySQL persists admin audit action, target, and structured change summary',
   };
   const res = new EventEmitter();
   res.statusCode = 200;
+  res.headersSent = false;
+  res.removeHeader = () => {};
+  res.end = () => res;
 
   try {
     middleware(req, res, () => {});
-    res.emit('finish');
+    res.end();
     await insertPromise;
     const { rows } = await query(
       'SELECT action, target_id, change_summary FROM admin_audit_log WHERE request_id = $1',

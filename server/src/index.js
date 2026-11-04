@@ -3,6 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import { createClient } from 'redis';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from './config.js';
@@ -33,6 +35,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.disable('x-powered-by');
 app.use(requestContext);
+
+const redisClient = config.REDIS_URL ? createClient({ url: config.REDIS_URL }) : null;
+if (redisClient) {
+  redisClient.on('error', error => logger.error('rate_limit_redis_error', { error: error.message }));
+  await redisClient.connect();
+}
+
+function createRateLimitStore(prefix) {
+  if (!redisClient) return undefined;
+  return new RedisStore({
+    prefix: `nexorarent:${prefix}:`,
+    sendCommand: (...args) => redisClient.sendCommand(args),
+  });
+}
 
 // Trust proxy when behind reverse proxy (Railway, etc.)
 if (config.NODE_ENV === 'production') {
@@ -70,6 +86,7 @@ const limiter = rateLimit({
   max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('global'),
 });
 app.use('/api/', limiter);
 
@@ -78,6 +95,7 @@ const authLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('auth'),
 });
 app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/register', authLimiter);
@@ -87,6 +105,7 @@ const contactLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('contact'),
 });
 app.use('/api/v1/contact', contactLimiter);
 
@@ -95,6 +114,7 @@ const reservationLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('reservations'),
 });
 app.use('/api/v1/reservations', reservationLimiter);
 
@@ -103,6 +123,7 @@ const uploadLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  store: createRateLimitStore('uploads'),
 });
 app.use('/api/v1/upload', uploadLimiter);
 app.use('/api/v1/admin/cars/:id/images', uploadLimiter);
@@ -133,13 +154,32 @@ app.use('/api/v1/admin/deliveries', adminDeliveryRoutes);
 
 // Health check
 app.get('/api/health', async (req, res) => {
+  let databaseAvailable = false;
+  let rateLimitStoreAvailable = !redisClient;
   try {
     await query('SELECT 1');
-    res.json({ status: 'ok', database: 'ok', timestamp: new Date().toISOString() });
+    databaseAvailable = true;
   } catch (error) {
     logger.error('health_check_database_failed', { requestId: req.requestId, error: error.message });
-    res.status(503).json({ status: 'degraded', database: 'unavailable', timestamp: new Date().toISOString() });
   }
+  if (redisClient) {
+    try {
+      await redisClient.ping();
+      rateLimitStoreAvailable = true;
+    } catch (error) {
+      logger.error('health_check_rate_limit_store_failed', { requestId: req.requestId, error: error.message });
+    }
+  }
+  const healthy = databaseAvailable && rateLimitStoreAvailable;
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'ok' : 'degraded',
+    database: databaseAvailable ? 'ok' : 'unavailable',
+    rate_limit_store: redisClient
+      ? rateLimitStoreAvailable ? 'ok' : 'unavailable'
+      : 'process-local',
+    image_storage: config.NODE_ENV === 'production' ? 'object-storage' : 'local',
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // 404
@@ -173,15 +213,20 @@ const server = app.listen(config.PORT, () => {
 
 function shutdown(signal) {
   logger.info('server_shutdown_started', { signal });
-  server.close(error => {
+  server.close(async error => {
     if (error) {
       logger.error('server_shutdown_failed', { signal, error: error.message });
       process.exitCode = 1;
     }
-    pool.end().catch(poolError => {
-      logger.error('database_pool_shutdown_failed', { error: poolError.message });
-      process.exitCode = 1;
-    });
+    const shutdownTasks = [pool.end()];
+    if (redisClient?.isOpen) shutdownTasks.push(redisClient.quit());
+    const results = await Promise.allSettled(shutdownTasks);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        logger.error('application_dependency_shutdown_failed', { error: result.reason.message });
+        process.exitCode = 1;
+      }
+    }
   });
 }
 
