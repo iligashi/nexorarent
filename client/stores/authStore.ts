@@ -27,6 +27,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     setAccessToken(null);
     set({ user: null });
+    api.post('/auth/logout').catch((error: unknown) => {
+      console.error('Failed to clear the refresh-token cookie:', error);
+    });
   },
   fetchUser: async () => {
     try {

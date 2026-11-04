@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
-import { requireAdmin } from '../middleware/admin.js';
+import { requireAdmin, requireManager } from '../middleware/admin.js';
 
 const router = Router();
 router.use(authenticate, requireAdmin);
@@ -55,7 +55,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // Approve a review
-router.put('/:id/approve', async (req, res, next) => {
+router.put('/:id/approve', requireManager, async (req, res, next) => {
   try {
     await query('UPDATE reviews SET is_approved = true WHERE id = $1', [req.params.id]);
     const { rows } = await query('SELECT * FROM reviews WHERE id = $1', [req.params.id]);
@@ -65,7 +65,7 @@ router.put('/:id/approve', async (req, res, next) => {
 });
 
 // Reject a review
-router.put('/:id/reject', async (req, res, next) => {
+router.put('/:id/reject', requireManager, async (req, res, next) => {
   try {
     await query('UPDATE reviews SET is_approved = false WHERE id = $1', [req.params.id]);
     const { rows } = await query('SELECT * FROM reviews WHERE id = $1', [req.params.id]);
@@ -75,7 +75,7 @@ router.put('/:id/reject', async (req, res, next) => {
 });
 
 // Reply to a review
-router.put('/:id/reply', async (req, res, next) => {
+router.put('/:id/reply', requireManager, async (req, res, next) => {
   try {
     const { admin_reply } = req.body;
     if (!admin_reply || !admin_reply.trim()) {
@@ -93,7 +93,7 @@ router.put('/:id/reply', async (req, res, next) => {
 });
 
 // Delete a review
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireManager, async (req, res, next) => {
   try {
     const { rows } = await query('SELECT id FROM reviews WHERE id = $1', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Review not found' });

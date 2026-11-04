@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
-import { requireAdmin } from '../middleware/admin.js';
+import { requireAdmin, requireManager } from '../middleware/admin.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -17,7 +17,7 @@ router.get('/templates', async (req, res, next) => {
 });
 
 // Update template
-router.put('/templates/:id', async (req, res, next) => {
+router.put('/templates/:id', requireManager, async (req, res, next) => {
   try {
     const { template_body, is_active } = req.body;
     const fields = []; const params = []; let idx = 1;
@@ -60,7 +60,7 @@ router.get('/log', async (req, res, next) => {
 });
 
 // Manually send WhatsApp notification
-router.post('/send', async (req, res, next) => {
+router.post('/send', requireManager, async (req, res, next) => {
   try {
     const { reservation_id, type, recipient } = req.body;
     if (!type || !recipient) return res.status(400).json({ error: 'type and recipient required' });
@@ -149,7 +149,11 @@ export async function sendNotification(type, recipient, reservationId = null, us
     VALUES ($1, $2, $3, $4, 'whatsapp', $5, 'sent', NOW())
   `, [logId, reservationId || null, userId || null, type, recipient]);
 
-  logger.info(`WhatsApp notification [${type}] to ${recipient}`);
+  logger.info('whatsapp_notification_created', {
+    type,
+    reservationId,
+    userId,
+  });
 
   return { success: true, message, whatsapp_url: waUrl, log_id: logId };
 }

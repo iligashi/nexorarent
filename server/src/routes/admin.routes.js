@@ -1,17 +1,14 @@
 import { Router } from 'express';
-import sharp from 'sharp';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import PDFDocument from 'pdfkit';
 import { query, getConnection } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireAdmin, requireManager } from '../middleware/admin.js';
-import { upload } from '../middleware/upload.js';
+import { removeUploadedImage, saveOptimizedImage, upload } from '../middleware/upload.js';
 import { earnLoyaltyPoints } from './admin.loyalty.routes.js';
 import { sendNotification } from './admin.notifications.routes.js';
+import { logger } from '../utils/logger.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
 router.use(authenticate, requireAdmin);
 
@@ -294,7 +291,7 @@ router.delete('/cars/:id', requireManager, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch('/cars/:id/toggle', async (req, res, next) => {
+router.patch('/cars/:id/toggle', requireManager, async (req, res, next) => {
   try {
     await query(
       'UPDATE cars SET is_available = NOT is_available WHERE id = $1',
@@ -307,7 +304,7 @@ router.patch('/cars/:id/toggle', async (req, res, next) => {
 });
 
 // Add car image by URL
-router.post('/cars/:id/images/url', async (req, res, next) => {
+router.post('/cars/:id/images/url', requireManager, async (req, res, next) => {
   try {
     const carId = req.params.id;
     const { url, alt_text, is_primary } = req.body;
@@ -333,34 +330,64 @@ router.post('/cars/:id/images/url', async (req, res, next) => {
 });
 
 // Car image upload (file)
-router.post('/cars/:id/images', upload.array('images', 10), async (req, res, next) => {
+router.post('/cars/:id/images', requireManager, upload.array('images', 10), async (req, res, next) => {
+  const savedImages = [];
+  let conn;
   try {
     const carId = req.params.id;
     const uploaded = [];
 
+    const { rows: cars } = await query('SELECT id FROM cars WHERE id = $1', [carId]);
+    if (cars.length === 0) return res.status(404).json({ error: 'Car not found' });
+    if (!req.files?.length) return res.status(400).json({ error: 'No images uploaded' });
+
     for (const file of req.files) {
-      const webpFilename = file.filename.replace(/\.[^.]+$/, '.webp');
-      const outputPath = path.join(path.dirname(file.path), webpFilename);
+      savedImages.push(await saveOptimizedImage(file.buffer));
+    }
 
-      await sharp(file.path).resize(800, null, { withoutEnlargement: true }).webp({ quality: 80 }).toFile(outputPath);
+    conn = await getConnection();
+    await conn.beginTransaction();
+    const { rows: existingImages } = await connQuery(
+      conn,
+      'SELECT COUNT(*) AS count FROM car_images WHERE car_id = $1',
+      [carId]
+    );
+    const firstSortOrder = Number(existingImages[0].count);
 
-      const url = `/uploads/${webpFilename}`;
-      const isPrimary = uploaded.length === 0;
+    for (const [index, image] of savedImages.entries()) {
+      const isPrimary = firstSortOrder === 0 && index === 0;
       const imgId = uuidv4();
-
-      await query(
+      await connQuery(
+        conn,
         'INSERT INTO car_images (id, car_id, url, is_primary, sort_order) VALUES ($1,$2,$3,$4,$5)',
-        [imgId, carId, url, isPrimary, uploaded.length]
+        [imgId, carId, image.url, isPrimary, firstSortOrder + index]
       );
-      const { rows } = await query('SELECT * FROM car_images WHERE id = $1', [imgId]);
+      const { rows } = await connQuery(conn, 'SELECT * FROM car_images WHERE id = $1', [imgId]);
       uploaded.push(rows[0]);
     }
 
+    await conn.commit();
     res.status(201).json({ images: uploaded });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (conn) await conn.rollback();
+    await Promise.all(savedImages.map(async image => {
+      try {
+        await removeUploadedImage(image.filename);
+      } catch (cleanupError) {
+        logger.error('uploaded_image_cleanup_failed', {
+          requestId: req.requestId,
+          filename: image.filename,
+          error: cleanupError.message,
+        });
+      }
+    }));
+    next(err);
+  } finally {
+    conn?.release();
+  }
 });
 
-router.delete('/cars/:carId/images/:imgId', async (req, res, next) => {
+router.delete('/cars/:carId/images/:imgId', requireManager, async (req, res, next) => {
   try {
     const { rows: existing } = await query('SELECT id FROM car_images WHERE id = $1 AND car_id = $2', [req.params.imgId, req.params.carId]);
     if (existing.length === 0) return res.status(404).json({ error: 'Image not found' });
@@ -497,7 +524,7 @@ router.get('/settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/settings', async (req, res, next) => {
+router.put('/settings', requireManager, async (req, res, next) => {
   try {
     const entries = Object.entries(req.body);
     for (const [key, value] of entries) {

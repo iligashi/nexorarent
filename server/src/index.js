@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -6,7 +5,11 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { config } from './config.js';
+import pool, { query } from './db/pool.js';
 import { logger } from './utils/logger.js';
+import { auditAdminAction, requestContext } from './middleware/request-context.js';
+import { requireJsonObject } from './middleware/json-object.js';
 
 import authRoutes from './routes/auth.routes.js';
 import carRoutes from './routes/cars.routes.js';
@@ -28,21 +31,38 @@ import adminDeliveryRoutes from './routes/admin.delivery.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+app.disable('x-powered-by');
+app.use(requestContext);
 
 // Trust proxy when behind reverse proxy (Railway, etc.)
-if (process.env.NODE_ENV === 'production') {
+if (config.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
 // Middleware
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000,http://localhost:3001')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const isAllowedDevelopmentOrigin = origin =>
+  process.env.NODE_ENV !== 'production' &&
+  /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || isAllowedDevelopmentOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(null, false);
+  },
   credentials: true,
 }));
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb', parameterLimit: 100 }));
+app.use(requireJsonObject);
 
 // Rate limiting
 const limiter = rateLimit({
@@ -56,9 +76,38 @@ app.use('/api/', limiter);
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/register', authLimiter);
+
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/v1/contact', contactLimiter);
+
+const reservationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/v1/reservations', reservationLimiter);
+
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/v1/upload', uploadLimiter);
+app.use('/api/v1/admin/cars/:id/images', uploadLimiter);
+app.use('/api/v1/admin', auditAdminAction);
+app.use('/api/v1/upload', auditAdminAction);
 
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
@@ -83,8 +132,14 @@ app.use('/api/v1/admin/notifications', adminNotificationRoutes);
 app.use('/api/v1/admin/deliveries', adminDeliveryRoutes);
 
 // Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (req, res) => {
+  try {
+    await query('SELECT 1');
+    res.json({ status: 'ok', database: 'ok', timestamp: new Date().toISOString() });
+  } catch (error) {
+    logger.error('health_check_database_failed', { requestId: req.requestId, error: error.message });
+    res.status(503).json({ status: 'degraded', database: 'unavailable', timestamp: new Date().toISOString() });
+  }
 });
 
 // 404
@@ -94,15 +149,43 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-  logger.error(err.stack);
-  res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+  const status = err.status || (err.type === 'entity.too.large' ||
+    (err.name === 'MulterError' && ['LIMIT_FILE_SIZE', 'LIMIT_FILE_COUNT'].includes(err.code)) ? 413 :
+    err.name === 'MulterError' ? 400 : 500);
+  logger.error('request_failed', {
+    requestId: req.requestId,
+    method: req.method,
+    path: req.originalUrl.split('?')[0],
+    userId: req.user?.id,
+    statusCode: status,
+    error: err.message,
+    stack: config.NODE_ENV === 'production' ? undefined : err.stack,
+  });
+  res.status(status).json({
+    error: config.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+    requestId: req.requestId,
   });
 });
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
+const server = app.listen(config.PORT, () => {
+  logger.info('server_started', { port: config.PORT, environment: config.NODE_ENV });
 });
+
+function shutdown(signal) {
+  logger.info('server_shutdown_started', { signal });
+  server.close(error => {
+    if (error) {
+      logger.error('server_shutdown_failed', { signal, error: error.message });
+      process.exitCode = 1;
+    }
+    pool.end().catch(poolError => {
+      logger.error('database_pool_shutdown_failed', { error: poolError.message });
+      process.exitCode = 1;
+    });
+  });
+}
+
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 export default app;

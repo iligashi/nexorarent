@@ -40,7 +40,7 @@ export default function BlogDetailPage() {
             <div className="h-10 w-3/4 bg-bg-tertiary rounded" />
             <div className="h-4 w-48 bg-bg-tertiary rounded" />
             <div className="space-y-3 mt-8">
-              {[...Array(8)].map((_, i) => <div key={i} className="h-4 bg-bg-tertiary rounded" style={{ width: `${85 + Math.random() * 15}%` }} />)}
+              {[...Array(8)].map((_, i) => <div key={i} className="h-4 bg-bg-tertiary rounded" style={{ width: `${85 + (i * 7) % 15}%` }} />)}
             </div>
           </div>
         </div>

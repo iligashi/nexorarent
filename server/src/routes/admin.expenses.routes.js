@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
-import { requireAdmin } from '../middleware/admin.js';
+import { requireAdmin, requireManager } from '../middleware/admin.js';
 
 const router = Router();
 router.use(authenticate, requireAdmin);
@@ -141,7 +141,7 @@ router.get('/car/:carId', async (req, res, next) => {
 });
 
 // Create expense
-router.post('/', async (req, res, next) => {
+router.post('/', requireManager, async (req, res, next) => {
   try {
     const { car_id, category, description, amount, expense_date, vendor } = req.body;
 
@@ -161,7 +161,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // Update expense
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireManager, async (req, res, next) => {
   try {
     const { rows: existing } = await query('SELECT id FROM car_expenses WHERE id = $1', [req.params.id]);
     if (existing.length === 0) return res.status(404).json({ error: 'Expense not found' });
@@ -191,7 +191,7 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // Delete expense
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireManager, async (req, res, next) => {
   try {
     const { rows } = await query('SELECT id FROM car_expenses WHERE id = $1', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Expense not found' });

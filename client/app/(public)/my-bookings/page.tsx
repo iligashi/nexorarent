@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Calendar, Car } from 'lucide-react';
 import api from '@/lib/api';
 import Badge from '@/components/ui/Badge';
@@ -44,7 +45,7 @@ export default function MyBookingsPage() {
           <div className="text-center py-20 bg-bg-secondary border border-border rounded-xl">
             <Car className="w-12 h-12 text-text-muted mx-auto mb-4" />
             <p className="text-text-muted text-lg">{t.noReservationsYet}</p>
-            <a href="/cars" className="text-accent text-sm mt-2 inline-block hover:underline">{t.browseOurFleet}</a>
+            <Link href="/cars" className="text-accent text-sm mt-2 inline-block hover:underline">{t.browseOurFleet}</Link>
           </div>
         ) : (
           <div className="space-y-4">

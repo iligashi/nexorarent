@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock } from 'lucide-react';
@@ -25,8 +26,9 @@ export default function LoginPage() {
     try {
       await login(email, password);
       router.push('/');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed');
+    } catch (err: unknown) {
+      const message = axios.isAxiosError<{ error?: string }>(err) ? err.response?.data?.error : undefined;
+      setError(message || 'Login failed');
     }
     setLoading(false);
   };

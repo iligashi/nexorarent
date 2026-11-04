@@ -1,12 +1,12 @@
 import mysql from 'mysql2/promise';
-import 'dotenv/config';
+import { config } from '../config.js';
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'drenas_rentacar',
+  host: config.DB_HOST,
+  port: config.DB_PORT,
+  user: config.DB_USER,
+  password: config.DB_PASSWORD,
+  database: config.DB_NAME,
   waitForConnections: true,
   connectionLimit: 20,
   queueLimit: 0,
