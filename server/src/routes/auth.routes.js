@@ -6,21 +6,28 @@ import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { refreshCookieOptions } from '../config.js';
 
 const router = Router();
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  first_name: z.string().min(1).max(100),
-  last_name: z.string().min(1).max(100),
-  phone: z.string().optional(),
+  email: z.string().trim().email().transform(value => value.toLowerCase()),
+  password: z.string().min(6).max(72),
+  first_name: z.string().trim().min(1).max(100),
+  last_name: z.string().trim().min(1).max(100),
+  phone: z.string().trim().max(30).optional(),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().trim().email().transform(value => value.toLowerCase()),
+  password: z.string().min(1).max(72),
 });
+
+const profileSchema = z.object({
+  first_name: z.string().trim().min(1).max(100).optional(),
+  last_name: z.string().trim().min(1).max(100).optional(),
+  phone: z.string().trim().max(30).optional(),
+}).refine(data => Object.keys(data).length > 0, 'At least one field is required');
 
 function generateTokens(userId) {
   const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
@@ -54,12 +61,7 @@ router.post('/register', validate(registerSchema), async (req, res, next) => {
     const user = rows[0];
     const tokens = generateTokens(user.id);
 
-    res.cookie('refreshToken', tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refreshToken', tokens.refreshToken, refreshCookieOptions);
 
     res.status(201).json({ user, accessToken: tokens.accessToken });
   } catch (err) { next(err); }
@@ -87,12 +89,7 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
     const tokens = generateTokens(user.id);
     delete user.password_hash;
 
-    res.cookie('refreshToken', tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refreshToken', tokens.refreshToken, refreshCookieOptions);
 
     res.json({ user, accessToken: tokens.accessToken });
   } catch (err) { next(err); }
@@ -104,7 +101,13 @@ router.post('/refresh', async (req, res, next) => {
     const token = req.cookies?.refreshToken;
     if (!token) return res.status(401).json({ error: 'Refresh token required' });
 
-    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    } catch {
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
     const { rows } = await query(
       'SELECT id, email, first_name, last_name, phone, role FROM users WHERE id = $1',
       [decoded.userId]
@@ -113,17 +116,15 @@ router.post('/refresh', async (req, res, next) => {
 
     const tokens = generateTokens(rows[0].id);
 
-    res.cookie('refreshToken', tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refreshToken', tokens.refreshToken, refreshCookieOptions);
 
     res.json({ user: rows[0], accessToken: tokens.accessToken });
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid refresh token' });
-  }
+  } catch (err) { next(err); }
+});
+
+router.post('/logout', (req, res) => {
+  res.clearCookie('refreshToken', refreshCookieOptions);
+  res.status(204).end();
 });
 
 // Get current user
@@ -146,9 +147,9 @@ router.get('/me/loyalty', authenticate, async (req, res, next) => {
 });
 
 // Update profile
-router.put('/me', authenticate, async (req, res, next) => {
+router.put('/me', authenticate, validate(profileSchema), async (req, res, next) => {
   try {
-    const { first_name, last_name, phone } = req.body;
+    const { first_name, last_name, phone } = req.validated;
     await query(
       `UPDATE users SET first_name = COALESCE($1, first_name), last_name = COALESCE($2, last_name), phone = COALESCE($3, phone)
        WHERE id = $4`,

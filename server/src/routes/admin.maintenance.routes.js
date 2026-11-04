@@ -38,7 +38,7 @@ router.post('/types', requireManager, async (req, res, next) => {
 });
 
 // Update maintenance type
-router.put('/types/:id', async (req, res, next) => {
+router.put('/types/:id', requireManager, async (req, res, next) => {
   try {
     const { rows: existing } = await query('SELECT id FROM maintenance_types WHERE id = $1', [req.params.id]);
     if (existing.length === 0) return res.status(404).json({ error: 'Maintenance type not found' });
@@ -181,7 +181,7 @@ router.get('/car/:carId', async (req, res, next) => {
 });
 
 // Create maintenance record
-router.post('/records', async (req, res, next) => {
+router.post('/records', requireManager, async (req, res, next) => {
   try {
     const { car_id, maintenance_type_id, scheduled_date, notes, vendor } = req.body;
 
@@ -206,7 +206,7 @@ router.post('/records', async (req, res, next) => {
 });
 
 // Update maintenance record
-router.put('/records/:id', async (req, res, next) => {
+router.put('/records/:id', requireManager, async (req, res, next) => {
   try {
     const { rows: existing } = await query(
       'SELECT mr.*, mt.interval_days FROM maintenance_records mr LEFT JOIN maintenance_types mt ON mt.id = mr.maintenance_type_id WHERE mr.id = $1',
@@ -259,7 +259,7 @@ router.put('/records/:id', async (req, res, next) => {
 });
 
 // Complete a maintenance record (shortcut)
-router.put('/records/:id/complete', async (req, res, next) => {
+router.put('/records/:id/complete', requireManager, async (req, res, next) => {
   try {
     const { rows: existing } = await query(`
       SELECT mr.*, mt.interval_days

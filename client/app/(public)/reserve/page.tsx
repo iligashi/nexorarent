@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
+import axios from 'axios';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Calendar, Clock, Check, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
@@ -123,8 +124,9 @@ function ReserveContent() {
       const { data } = await api.post('/reservations', payload);
       setConfirmationNo(data.reservation.reservation_no);
       store.setStep(6);
-    } catch (err: any) {
-      alert(err.response?.data?.error || t.failedCreateReservation);
+    } catch (err: unknown) {
+      const message = axios.isAxiosError<{ error?: string }>(err) ? err.response?.data?.error : undefined;
+      alert(message || t.failedCreateReservation);
     }
     setSubmitting(false);
   };

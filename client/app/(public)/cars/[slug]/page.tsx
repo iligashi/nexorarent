@@ -20,20 +20,33 @@ export default function CarDetailPage() {
   const [car, setCar] = useState<Car | null>(null);
   const [similarCars, setSimilarCars] = useState<Car[]>([]);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loadedSlug, setLoadedSlug] = useState('');
+  const loading = loadedSlug !== slug;
 
   useEffect(() => {
     if (!slug) return;
-    setLoading(true);
+    let active = true;
+    let carLoaded = false;
     api.get(`/cars/${slug}`)
       .then(r => {
+        if (!active) return null;
+        carLoaded = true;
         setCar(r.data.car);
         // Fetch similar cars
         return api.get('/cars', { params: { category: r.data.car.category, limit: 4 } });
       })
-      .then(r => setSimilarCars(r.data.cars.filter((c: Car) => c.slug !== slug).slice(0, 3)))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then(r => {
+        if (active && r) setSimilarCars(r.data.cars.filter((c: Car) => c.slug !== slug).slice(0, 3));
+      })
+      .catch(() => {
+        if (active && !carLoaded) {
+          setCar(null);
+        }
+      })
+      .finally(() => {
+        if (active) setLoadedSlug(slug);
+      });
+    return () => { active = false; };
   }, [slug]);
 
   if (loading) {

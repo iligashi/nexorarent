@@ -10,7 +10,7 @@ Full-stack car rental platform built with Next.js and Express.js, using MySQL (X
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) v18 or higher
+- [Node.js](https://nodejs.org/) v20.9 or higher
 - [XAMPP](https://www.apachefriends.org/) (Apache + MySQL/MariaDB)
 
 ## Local Setup
@@ -51,13 +51,8 @@ JWT_REFRESH_SECRET=your_jwt_refresh_secret_key_here
 PORT=4000
 NODE_ENV=development
 CLIENT_URL=http://localhost:3000
+COOKIE_SAME_SITE=lax
 
-# Email (SMTP) - optional
-SMTP_HOST=smtp.example.com
-SMTP_PORT=465
-SMTP_USER=your_smtp_user
-SMTP_PASS=your_smtp_password
-EMAIL_FROM=noreply@example.com
 ```
 
 Run database migrations and seed data:
@@ -100,6 +95,10 @@ npm run dev
 ```
 
 The site will be running at `http://localhost:3000`.
+
+## Production operations
+
+See [OPERATIONS.md](./OPERATIONS.md) for deployment configuration, database backup and restore, health monitoring, and release guidance. Production requires HTTPS origins, distinct strong JWT secrets, and managed database credentials; development defaults are not suitable for deployment.
 
 ## Demo access
 

@@ -1,30 +1,66 @@
-import multer from 'multer';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
+import multer from 'multer';
+import sharp from 'sharp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.join(__dirname, '..', '..', 'uploads');
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuid()}${ext}`);
-  },
-});
+const acceptedFormats = new Set(['jpeg', 'png', 'webp', 'avif']);
+const acceptedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
 
 const fileFilter = (req, file, cb) => {
-  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
-  if (allowed.includes(file.mimetype)) {
+  if (acceptedMimeTypes.has(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only JPEG, PNG, WebP, and AVIF images are allowed'), false);
+    const error = new Error('Only JPEG, PNG, WebP, and AVIF images are allowed');
+    error.status = 400;
+    cb(error);
   }
 };
 
 export const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 10,
+    fields: 20,
+    parts: 30,
+    fieldSize: 64 * 1024,
+  },
 });
+
+export async function saveOptimizedImage(buffer) {
+  let optimized;
+  try {
+    const metadata = await sharp(buffer, { failOn: 'error', limitInputPixels: 40_000_000 }).metadata();
+    if (!acceptedFormats.has(metadata.format)) {
+      const invalidImage = new Error('Only JPEG, PNG, WebP, and AVIF images are allowed');
+      invalidImage.status = 400;
+      throw invalidImage;
+    }
+
+    optimized = await sharp(buffer, { failOn: 'error', limitInputPixels: 40_000_000 })
+      .rotate()
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer();
+  } catch (error) {
+    if (error.status) throw error;
+    const invalidImage = new Error('Uploaded file is not a valid supported image');
+    invalidImage.status = 400;
+    invalidImage.cause = error;
+    throw invalidImage;
+  }
+
+  const filename = `${uuid()}.webp`;
+  await fs.mkdir(uploadDir, { recursive: true });
+  await fs.writeFile(path.join(uploadDir, filename), optimized, { flag: 'wx' });
+  return { filename, url: `/uploads/${filename}` };
+}
+
+export async function removeUploadedImage(filename) {
+  await fs.unlink(path.join(uploadDir, path.basename(filename)));
+}

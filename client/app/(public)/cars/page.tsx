@@ -81,7 +81,7 @@ function CarsContent() {
     { value: 'price_desc', label: t.priceHighLow },
   ];
 
-  const FilterSidebar = () => (
+  const renderFilterSidebar = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="font-outfit font-semibold text-white">{t.filters}</h3>
@@ -196,7 +196,7 @@ function CarsContent() {
           {/* Desktop Sidebar */}
           <aside className="hidden lg:block w-64 shrink-0">
             <div className="sticky top-28 bg-bg-secondary border border-border rounded-xl p-6">
-              <FilterSidebar />
+              {renderFilterSidebar()}
             </div>
           </aside>
 
@@ -290,7 +290,7 @@ function CarsContent() {
                 <h3 className="font-outfit font-semibold text-white text-lg">{t.filters}</h3>
                 <button onClick={() => setShowFilters(false)}><X className="w-5 h-5 text-text-muted" /></button>
               </div>
-              <FilterSidebar />
+              {renderFilterSidebar()}
             </div>
           </div>
         )}
