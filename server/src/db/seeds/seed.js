@@ -1,9 +1,24 @@
+import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import mysql from 'mysql2/promise';
 import { config } from '../../config.js';
 
+// The owner password comes from SEED_ADMIN_PASSWORD. Without it, a random one is
+// generated and printed once, so no seeded database shares a known password.
+function ownerPassword() {
+  const fromEnv = process.env.SEED_ADMIN_PASSWORD;
+  if (fromEnv) {
+    if (fromEnv.length < 12) throw new Error('SEED_ADMIN_PASSWORD must be at least 12 characters');
+    return { password: fromEnv, generated: false };
+  }
+  if (config.NODE_ENV === 'production') throw new Error('SEED_ADMIN_PASSWORD is required in production');
+  return { password: randomBytes(18).toString('base64url'), generated: true };
+}
+
 async function seed() {
+  const owner = ownerPassword();
+
   const conn = await mysql.createConnection({
     host: config.DB_HOST,
     port: config.DB_PORT,
@@ -14,14 +29,21 @@ async function seed() {
 
   try {
     // Owner user
-    const passwordHash = await bcrypt.hash('admin123', 12);
+    const passwordHash = await bcrypt.hash(owner.password, 12);
     const adminId = uuidv4();
-    await conn.execute(
+    const [ownerInsert] = await conn.execute(
       `INSERT IGNORE INTO users (id, email, password_hash, first_name, last_name, phone, role, is_verified)
        VALUES (?, ?, ?, ?, ?, ?, ?, true)`,
       [adminId, 'admin@nexorarentacar.com', passwordHash, 'Admin', 'Drenas', '+383 44 123 456', 'owner']
     );
+    if (ownerInsert.affectedRows === 0) {
+      console.log('Owner admin@nexorarentacar.com already exists; password unchanged.');
+    } else if (owner.generated) {
+      console.log(`Owner admin@nexorarentacar.com created with password: ${owner.password}`);
+    }
 
+    // Locations and extras have random ids, so skip rows that already exist by name
+    // to keep the seed safe to run more than once.
     // Locations
     const locations = [
       ['Drenas Center', 'Rruga Adem Jashari, Drenas', 'Drenas', 42.6271, 20.8900],
@@ -32,8 +54,9 @@ async function seed() {
     ];
     for (const [name, address, city, lat, lng] of locations) {
       await conn.execute(
-        `INSERT IGNORE INTO locations (id, name, address, city, lat, lng) VALUES (?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), name, address, city, lat, lng]
+        `INSERT INTO locations (id, name, address, city, lat, lng)
+         SELECT ?, ?, ?, ?, ?, ? FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM locations WHERE name = ?)`,
+        [uuidv4(), name, address, city, lat, lng, name]
       );
     }
 
@@ -68,8 +91,9 @@ async function seed() {
     ];
     for (const [name, description, price, icon] of extras) {
       await conn.execute(
-        `INSERT IGNORE INTO extras (id, name, description, price_per_day, icon) VALUES (?, ?, ?, ?, ?)`,
-        [uuidv4(), name, description, price, icon]
+        `INSERT INTO extras (id, name, description, price_per_day, icon)
+         SELECT ?, ?, ?, ?, ? FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM extras WHERE name = ?)`,
+        [uuidv4(), name, description, price, icon, name]
       );
     }
 

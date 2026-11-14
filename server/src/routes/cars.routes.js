@@ -1,18 +1,9 @@
 import { Router } from 'express';
 import { getConnection, query } from '../db/pool.js';
 import { checkCarAvailability } from '../services/reservations.js';
+import { toPublicCar } from '../utils/cars.js';
 
 const router = Router();
-
-// Parse features JSON string to array for MariaDB compatibility
-function parseCar(car) {
-  if (!car) return car;
-  if (typeof car.features === 'string') {
-    try { car.features = JSON.parse(car.features); } catch { car.features = []; }
-  }
-  if (!car.features) car.features = [];
-  return car;
-}
 
 // List cars with filters + pagination
 router.get('/', async (req, res, next) => {
@@ -68,7 +59,7 @@ router.get('/', async (req, res, next) => {
     ]);
 
     res.json({
-      cars: carsResult.rows.map(parseCar),
+      cars: carsResult.rows.map(toPublicCar),
       total: parseInt(countResult.rows[0].count),
       page: Number(page),
       limit: Number(limit),
@@ -87,7 +78,7 @@ router.get('/featured', async (req, res, next) => {
       ORDER BY c.sort_order ASC
       LIMIT 6
     `);
-    res.json({ cars: rows.map(parseCar) });
+    res.json({ cars: rows.map(toPublicCar) });
   } catch (err) { next(err); }
 });
 
@@ -123,7 +114,7 @@ router.get('/:slug', async (req, res, next) => {
       [car.id]
     );
 
-    res.json({ car: { ...parseCar(car), images, reviews } });
+    res.json({ car: { ...toPublicCar(car), images, reviews } });
   } catch (err) { next(err); }
 });
 

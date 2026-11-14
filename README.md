@@ -143,7 +143,7 @@ The root `dev` script starts the web app and API together. Alternatively, start 
 |---|---|
 | `npm run dev` | Start the API and web app |
 | `npm run db:migrate` | Apply pending MySQL migrations |
-| `npm run db:seed` | Insert development seed data |
+| `npm run db:seed` | Insert development seed data (safe to rerun; set `SEED_ADMIN_PASSWORD` or a random owner password is printed) |
 | `npm run db:reset` | Apply migrations and seed data |
 | `npm --prefix server test` | Run backend unit tests |
 | `npm --prefix client run lint` | Run frontend ESLint |
@@ -233,7 +233,7 @@ docs/screenshots/       Product screenshots used in this README
 ## Production and data safety
 
 - This repository does **not** create a production deployment, managed database, Redis service, object-storage bucket, backup schedule, or monitoring integration.
-- The current migration history includes local/demo fixture data, and the standalone development seed script creates a known admin credential. Review and remove or replace these fixtures and seed behavior before using the migration chain in a production environment. Never run development seed/reset commands against production.
+- The current migration history includes local/demo fixture data, and the standalone development seed script creates an owner account (`admin@nexorarentacar.com`) whose password comes from `SEED_ADMIN_PASSWORD` or is generated randomly. Review and remove or replace these fixtures and seed behavior before using the migration chain in a production environment. Never run development seed/reset commands against production.
 - Use separate least-privilege runtime and migration database users, strong unique JWT secrets, HTTPS, a shared Redis-compatible rate-limit store, and durable object storage.
 - Audit rows are written before successful admin mutation responses are returned, but the audit write and business mutation are not an atomic transactional outbox.
 - Backups, restore drills, provider-specific deployment, and rollback must be tested and documented outside this repository before accepting real customer bookings.
