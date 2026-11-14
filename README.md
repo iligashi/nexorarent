@@ -142,7 +142,7 @@ The root `dev` script starts the web app and API together. Alternatively, start 
 The backend is being moved route by route to an ASP.NET Core API in
 [nexorarent-api](https://github.com/iligashi/nexorarent-api). Both backends share the same database
 and JWT secret, and Next.js forwards each `/api/v1` route to the backend that owns it
-(see `client/next.config.ts`). The cars routes are served by .NET; everything else by Express.
+(see `client/next.config.ts`). The cars, locations, extras and blog routes are served by .NET; everything else by Express.
 
 Requirements: the [.NET 10 SDK](https://dotnet.microsoft.com/download) and the API checked out next to
 this repository:

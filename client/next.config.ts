@@ -16,7 +16,7 @@ const expressApiUrl = process.env.EXPRESS_API_URL?.replace(/\/+$/, "");
 const dotnetApiUrl = process.env.DOTNET_API_URL?.replace(/\/+$/, "");
 
 /** Route groups under /api/v1 that the .NET API serves when DOTNET_API_URL is set. */
-const DOTNET_ROUTE_GROUPS = ["cars"] as const;
+const DOTNET_ROUTE_GROUPS = ["cars", "locations", "extras", "blog"] as const;
 
 function apiRewrites() {
   if (!expressApiUrl) return [];
