@@ -137,11 +137,47 @@ The web app is available at [http://localhost:3000](http://localhost:3000), the 
 
 The root `dev` script starts the web app and API together. Alternatively, start each service in its own terminal with `npm --prefix server run dev` and `npm --prefix client run dev`.
 
+### Run with the .NET API
+
+The backend is being moved route by route to an ASP.NET Core API in
+[nexorarent-api](https://github.com/iligashi/nexorarent-api). Both backends share the same database
+and JWT secret, and Next.js forwards each `/api/v1` route to the backend that owns it
+(see `client/next.config.ts`). The cars, locations, extras and blog routes are served by .NET; everything else by Express.
+
+Requirements: the [.NET 10 SDK](https://dotnet.microsoft.com/download) and the API checked out next to
+this repository:
+
+```
+nexora-dev/
+  nexorarent/       this repository
+  nexorarent-api/   git clone https://github.com/iligashi/nexorarent-api.git
+```
+
+From this repository's root:
+
+```sh
+npm run setup      # creates .env, server/.env and client/.env.local with random secrets (never overwrites)
+npm run db:up      # MySQL 8.4 in Docker on 127.0.0.1:3307
+npm run db:reset   # tables and sample data
+npm run dev:all    # Next.js :3000, Express :4000, .NET :5080
+```
+
+Open [http://localhost:3000](http://localhost:3000). The browser only talks to Next.js, so the refresh
+cookie stays first-party. To run without the .NET API, remove `DOTNET_API_URL` from
+`client/.env.local`; to call Express directly as before, set
+`NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1` and remove `EXPRESS_API_URL`.
+
+`npm run dev:dotnet` loads `server/.env`, so the .NET API always uses the same database and
+`JWT_SECRET` as Express. Set `DOTNET_API_DIR` if the API is checked out somewhere else.
+
 ## Development commands
 
 | Command (from repository root) | Purpose |
 |---|---|
+| `npm run setup` | Create local env files with generated secrets |
 | `npm run dev` | Start the API and web app |
+| `npm run dev:all` | Start the web app, Express API and .NET API |
+| `npm run db:up` / `npm run db:down` | Start or stop the local MySQL container |
 | `npm run db:migrate` | Apply pending MySQL migrations |
 | `npm run db:seed` | Insert development seed data (safe to rerun; set `SEED_ADMIN_PASSWORD` or a random owner password is printed) |
 | `npm run db:reset` | Apply migrations and seed data |
