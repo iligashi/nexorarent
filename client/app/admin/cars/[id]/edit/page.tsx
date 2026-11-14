@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import axios from 'axios';
 import api from '@/lib/api';
 import CarForm from '@/components/admin/CarForm';
 import { useLanguageStore } from '@/stores/languageStore';
@@ -19,15 +20,11 @@ export default function EditCarPage() {
   useEffect(() => {
     const fetchCar = async () => {
       try {
-        // First get the car slug from the list, then fetch full detail with images
-        const { data: listData } = await api.get(`/cars?limit=100`);
-        const found = listData.cars.find((c: Car) => c.id === id);
-        if (!found) { setError('Car not found'); return; }
-        // Fetch full detail including images
-        const { data } = await api.get(`/cars/${found.slug}`);
+        // Admin endpoint: includes VIN, license plate and deactivated cars
+        const { data } = await api.get(`/admin/cars/${id}`);
         setCar(data.car);
-      } catch {
-        setError('Failed to load car');
+      } catch (err) {
+        setError(axios.isAxiosError(err) && err.response?.status === 404 ? 'Car not found' : 'Failed to load car');
       } finally {
         setFetching(false);
       }

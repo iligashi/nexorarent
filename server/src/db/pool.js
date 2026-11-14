@@ -11,6 +11,9 @@ const pool = mysql.createPool({
   connectionLimit: 20,
   queueLimit: 0,
   multipleStatements: true,
+  // Read and write DATETIME values as UTC, whatever the Node process time zone is.
+  // Without this, mysql2 uses the local zone and timestamps shift on non-UTC machines.
+  timezone: 'Z',
 });
 
 // Helper that mimics pg-style { rows } return and converts $N placeholders to ?

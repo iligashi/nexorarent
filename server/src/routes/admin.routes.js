@@ -14,6 +14,7 @@ import {
 } from '../services/reservations.js';
 import { earnLoyaltyPoints } from './admin.loyalty.routes.js';
 import { sendNotification } from './admin.notifications.routes.js';
+import { parseCar } from '../utils/cars.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -218,6 +219,21 @@ router.get('/reservations/calendar', async (req, res, next) => {
 });
 
 // CRUD Cars (Admin)
+// Full car record for the edit form, including the VIN and license plate that
+// public routes hide, and deactivated cars that public routes do not list.
+router.get('/cars/:id', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT * FROM cars WHERE id = $1', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Car not found' });
+
+    const { rows: images } = await query(
+      'SELECT id, url, alt_text, is_primary, sort_order FROM car_images WHERE car_id = $1 ORDER BY sort_order',
+      [req.params.id]
+    );
+    res.json({ car: { ...parseCar(rows[0]), images } });
+  } catch (err) { next(err); }
+});
+
 router.post('/cars', requireManager, async (req, res, next) => {
   try {
     const { brand, model, year, category, fuel, transmission, seats, doors, horsepower,
