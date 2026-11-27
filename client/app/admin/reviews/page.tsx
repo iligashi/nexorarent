@@ -8,29 +8,49 @@ import AdminBadge from '@/components/admin/AdminBadge';
 import { Star, Check, X, MessageSquare, Trash2, Eye } from 'lucide-react';
 import { useLanguageStore } from '@/stores/languageStore';
 
-interface Review {
+/** A review as GET /admin/reviews returns it. Express sends is_approved as 0/1, the .NET API as false/true. */
+interface ApiReview {
   id: string;
-  car_id: string;
   user_id: string;
-  reservation_id: string;
+  reservation_id: string | null;
   rating: number;
-  comment: string;
-  status: 'pending' | 'approved' | 'rejected';
+  comment: string | null;
+  is_approved: boolean | number;
   admin_reply: string | null;
   replied_at: string | null;
   created_at: string;
-  car_brand: string;
-  car_model: string;
-  first_name: string;
-  last_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  reservation_no: string | null;
+  brand: string | null;
+  model: string | null;
+}
+
+interface AdminReviewList {
+  reviews: ApiReview[];
+  pagination: { page: number; limit: number; total: number; pages: number };
+}
+
+/**
+ * Reviews have two states in the database: approved (shown on the car page) or not yet.
+ * "Reject" takes a review off the site again, so it goes back to pending.
+ */
+type ReviewStatus = 'pending' | 'approved';
+
+interface Review extends ApiReview {
+  status: ReviewStatus;
 }
 
 interface Stats {
   total: number;
   pending: number;
   approved: number;
-  rejected: number;
 }
+
+const toReview = (review: ApiReview): Review => ({
+  ...review,
+  status: Boolean(review.is_approved) ? 'approved' : 'pending',
+});
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -55,7 +75,7 @@ export default function AdminReviewsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, approved: 0 });
 
   // Reply modal state
   const [replyModal, setReplyModal] = useState<Review | null>(null);
@@ -78,9 +98,9 @@ export default function AdminReviewsPage() {
       if (statusFilter !== 'all') params.set('status', statusFilter);
       params.set('page', String(page));
       params.set('limit', String(limit));
-      const { data } = await api.get(`/admin/reviews?${params}`);
-      setReviews(data.reviews);
-      setTotal(data.total);
+      const { data } = await api.get<AdminReviewList>(`/admin/reviews?${params}`);
+      setReviews(data.reviews.map(toReview));
+      setTotal(data.pagination.total);
     } catch (err) {
       console.error('Failed to fetch reviews:', err);
     } finally {
@@ -90,17 +110,15 @@ export default function AdminReviewsPage() {
 
   const fetchStats = async () => {
     try {
-      const [allRes, pendingRes, approvedRes, rejectedRes] = await Promise.all([
-        api.get('/admin/reviews?limit=1'),
-        api.get('/admin/reviews?status=pending&limit=1'),
-        api.get('/admin/reviews?status=approved&limit=1'),
-        api.get('/admin/reviews?status=rejected&limit=1'),
+      const [allRes, pendingRes, approvedRes] = await Promise.all([
+        api.get<AdminReviewList>('/admin/reviews?limit=1'),
+        api.get<AdminReviewList>('/admin/reviews?status=pending&limit=1'),
+        api.get<AdminReviewList>('/admin/reviews?status=approved&limit=1'),
       ]);
       setStats({
-        total: allRes.data.total,
-        pending: pendingRes.data.total,
-        approved: approvedRes.data.total,
-        rejected: rejectedRes.data.total,
+        total: allRes.data.pagination.total,
+        pending: pendingRes.data.pagination.total,
+        approved: approvedRes.data.pagination.total,
       });
     } catch (err) {
       console.error('Failed to fetch review stats:', err);
@@ -110,10 +128,20 @@ export default function AdminReviewsPage() {
   useEffect(() => { fetchReviews(); }, [statusFilter, page]);
   useEffect(() => { fetchStats(); }, []);
 
+  /** Updates a review's status in the list, or drops it when it no longer matches the open tab. */
+  const applyStatus = (id: string, status: ReviewStatus) => {
+    if (statusFilter !== 'all' && statusFilter !== status) {
+      setReviews(prev => prev.filter(r => r.id !== id));
+      setTotal(prev => Math.max(0, prev - 1));
+    } else {
+      setReviews(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+    }
+  };
+
   const handleApprove = async (id: string) => {
     try {
       await api.put(`/admin/reviews/${id}/approve`);
-      setReviews(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' as const } : r));
+      applyStatus(id, 'approved');
       setStats(prev => ({
         ...prev,
         pending: Math.max(0, prev.pending - 1),
@@ -127,11 +155,11 @@ export default function AdminReviewsPage() {
   const handleReject = async (id: string) => {
     try {
       await api.put(`/admin/reviews/${id}/reject`);
-      setReviews(prev => prev.map(r => r.id === id ? { ...r, status: 'rejected' as const } : r));
+      applyStatus(id, 'pending');
       setStats(prev => ({
         ...prev,
-        pending: Math.max(0, prev.pending - 1),
-        rejected: prev.rejected + 1,
+        approved: Math.max(0, prev.approved - 1),
+        pending: prev.pending + 1,
       }));
     } catch (err) {
       console.error('Failed to reject review:', err);
@@ -142,7 +170,7 @@ export default function AdminReviewsPage() {
     if (!replyModal || !replyText.trim()) return;
     setReplying(true);
     try {
-      const { data } = await api.put(`/admin/reviews/${replyModal.id}/reply`, { reply: replyText.trim() });
+      const { data } = await api.put(`/admin/reviews/${replyModal.id}/reply`, { admin_reply: replyText.trim() });
       setReviews(prev => prev.map(r => r.id === replyModal.id ? { ...r, admin_reply: data.review.admin_reply, replied_at: data.review.replied_at } : r));
       setReplyModal(null);
       setReplyText('');
@@ -186,7 +214,7 @@ export default function AdminReviewsPage() {
       key: 'car',
       label: t.car,
       render: (r: Review) => (
-        <span className="text-sm text-gray-700">{r.car_brand} {r.car_model}</span>
+        <span className="text-sm text-gray-700">{r.brand} {r.model}</span>
       ),
     },
     {
@@ -198,7 +226,7 @@ export default function AdminReviewsPage() {
       key: 'comment',
       label: t.comment,
       render: (r: Review) => (
-        <p className="text-sm text-gray-600 max-w-xs truncate" title={r.comment}>
+        <p className="text-sm text-gray-600 max-w-xs truncate" title={r.comment ?? undefined}>
           {r.comment}
         </p>
       ),
@@ -227,23 +255,22 @@ export default function AdminReviewsPage() {
           >
             <Eye className="w-4 h-4" />
           </button>
-          {r.status === 'pending' && (
-            <>
-              <button
-                onClick={() => handleApprove(r.id)}
-                title="Approve"
-                className="p-1.5 rounded-lg text-green-500 hover:text-green-700 hover:bg-green-50 transition-colors"
-              >
-                <Check className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleReject(r.id)}
-                title="Reject"
-                className="p-1.5 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </>
+          {r.status === 'pending' ? (
+            <button
+              onClick={() => handleApprove(r.id)}
+              title="Approve"
+              className="p-1.5 rounded-lg text-green-500 hover:text-green-700 hover:bg-green-50 transition-colors"
+            >
+              <Check className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              onClick={() => handleReject(r.id)}
+              title="Reject"
+              className="p-1.5 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           )}
           <button
             onClick={() => { setReplyModal(r); setReplyText(r.admin_reply || ''); }}
@@ -270,14 +297,12 @@ export default function AdminReviewsPage() {
     { label: t.totalReviews, value: stats.total, color: 'bg-gray-50 text-gray-700' },
     { label: t.pending, value: stats.pending, color: 'bg-amber-50 text-amber-700' },
     { label: t.approved, value: stats.approved, color: 'bg-green-50 text-green-700' },
-    { label: t.rejected, value: stats.rejected, color: 'bg-red-50 text-red-700' },
   ];
 
   const statusTabs: { label: string; value: string }[] = [
     { label: t.all, value: 'all' },
     { label: t.pending, value: 'pending' },
     { label: t.approved, value: 'approved' },
-    { label: t.rejected, value: 'rejected' },
   ];
 
   return (
@@ -286,7 +311,7 @@ export default function AdminReviewsPage() {
       <h1 className="text-2xl font-bold text-gray-900 font-outfit">{t.reviewsTitle}</h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {statCards.map(card => (
           <div key={card.label} className="bg-white rounded-xl border border-gray-100 p-4">
             <p className="text-sm text-gray-500">{card.label}</p>
@@ -370,7 +395,7 @@ export default function AdminReviewsPage() {
                 </div>
                 <div>
                   <p className="text-gray-500">{t.car}</p>
-                  <p className="font-medium text-gray-900">{detailModal.car_brand} {detailModal.car_model}</p>
+                  <p className="font-medium text-gray-900">{detailModal.brand} {detailModal.model}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">{t.rating}</p>
@@ -396,21 +421,20 @@ export default function AdminReviewsPage() {
               )}
               {/* Actions */}
               <div className="border-t border-gray-100 pt-4 flex flex-wrap gap-2">
-                {detailModal.status === 'pending' && (
-                  <>
-                    <button
-                      onClick={() => { handleApprove(detailModal.id); setDetailModal(prev => prev ? { ...prev, status: 'approved' } : null); }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-500 text-white text-sm font-medium rounded-lg hover:bg-green-600 transition-colors"
-                    >
-                      <Check className="w-4 h-4" /> {t.approve}
-                    </button>
-                    <button
-                      onClick={() => { handleReject(detailModal.id); setDetailModal(prev => prev ? { ...prev, status: 'rejected' } : null); }}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors"
-                    >
-                      <X className="w-4 h-4" /> {t.reject}
-                    </button>
-                  </>
+                {detailModal.status === 'pending' ? (
+                  <button
+                    onClick={() => { handleApprove(detailModal.id); setDetailModal(prev => prev ? { ...prev, status: 'approved' } : null); }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-500 text-white text-sm font-medium rounded-lg hover:bg-green-600 transition-colors"
+                  >
+                    <Check className="w-4 h-4" /> {t.approve}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { handleReject(detailModal.id); setDetailModal(prev => prev ? { ...prev, status: 'pending' } : null); }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors"
+                  >
+                    <X className="w-4 h-4" /> {t.reject}
+                  </button>
                 )}
                 <button
                   onClick={() => { setReplyModal(detailModal); setReplyText(detailModal.admin_reply || ''); setDetailModal(null); }}
