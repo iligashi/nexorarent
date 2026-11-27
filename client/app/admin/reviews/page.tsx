@@ -128,10 +128,20 @@ export default function AdminReviewsPage() {
   useEffect(() => { fetchReviews(); }, [statusFilter, page]);
   useEffect(() => { fetchStats(); }, []);
 
+  /** Updates a review's status in the list, or drops it when it no longer matches the open tab. */
+  const applyStatus = (id: string, status: ReviewStatus) => {
+    if (statusFilter !== 'all' && statusFilter !== status) {
+      setReviews(prev => prev.filter(r => r.id !== id));
+      setTotal(prev => Math.max(0, prev - 1));
+    } else {
+      setReviews(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+    }
+  };
+
   const handleApprove = async (id: string) => {
     try {
       await api.put(`/admin/reviews/${id}/approve`);
-      setReviews(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' as const } : r));
+      applyStatus(id, 'approved');
       setStats(prev => ({
         ...prev,
         pending: Math.max(0, prev.pending - 1),
@@ -145,7 +155,7 @@ export default function AdminReviewsPage() {
   const handleReject = async (id: string) => {
     try {
       await api.put(`/admin/reviews/${id}/reject`);
-      setReviews(prev => prev.map(r => r.id === id ? { ...r, status: 'pending' as const } : r));
+      applyStatus(id, 'pending');
       setStats(prev => ({
         ...prev,
         approved: Math.max(0, prev.approved - 1),
